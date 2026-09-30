@@ -1,0 +1,90 @@
+@page "/platform/customers/deactivate"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using FinancasSaaS.Application.Platform.DeactivateCustomer
+@using FinancasSaaS.Web.Security
+@attribute [Authorize(Policy = PlatformPolicies.MutateProvisioning)]
+@inject DeactivateCustomerUseCase DeactivateCustomer
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Desativar cliente</PageTitle>
+
+<h1>Desativar cliente</h1>
+<p>A desativação preserva os dados, bloqueia o acesso e invalida convites ativos.</p>
+
+<EditForm Model="Form" OnValidSubmit="SubmitAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div>
+        <label for="customerId">Cliente</label>
+        <InputText id="customerId" @bind-Value="Form.CustomerId" />
+    </div>
+    <div>
+        <label for="reason">Motivo</label>
+        <InputTextArea id="reason" @bind-Value="Form.Reason" />
+    </div>
+    <button type="submit" disabled="@IsSubmitting">@(IsSubmitting ? "Desativando..." : "Desativar cliente")</button>
+</EditForm>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <p role="status">@Message</p>
+}
+
+@code {
+    private readonly FormModel Form = new();
+    private bool IsSubmitting;
+    private string? Message;
+
+    private async Task SubmitAsync()
+    {
+        Message = null;
+        if (!Guid.TryParse(Form.CustomerId, out var customerId))
+        {
+            Message = "Informe um identificador de cliente válido.";
+            return;
+        }
+
+        IsSubmitting = true;
+        try
+        {
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var actorId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? authenticationState.User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(actorId))
+            {
+                Message = "Não foi possível identificar o operador autenticado.";
+                return;
+            }
+
+            var result = await DeactivateCustomer.ExecuteAsync(
+                new DeactivateCustomerCommand(customerId, actorId, Form.Reason));
+            Message = result is null
+                ? "Cliente não encontrado ou já desativado."
+                : "Cliente desativado. O acesso foi bloqueado e os convites ativos foram invalidados.";
+        }
+        catch (ArgumentException exception)
+        {
+            Message = exception.Message;
+        }
+        catch (Exception)
+        {
+            Message = "Não foi possível desativar o cliente. Consulte os registros administrativos.";
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "Informe o identificador do cliente.")]
+        public string CustomerId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o motivo da desativação.")]
+        public string Reason { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,76 @@
+@page "/concluir-cadastro"
+@using System.ComponentModel.DataAnnotations
+@using FinancasSaaS.Application.Platform.CompleteRegistration
+@inject CompleteRegistrationUseCase CompleteRegistrationService
+@inject NavigationManager Navigation
+
+<PageTitle>Concluir cadastro</PageTitle>
+
+<h1>Concluir cadastro</h1>
+<p>Defina sua senha para concluir o acesso à sua conta.</p>
+
+<EditForm Model="Form" OnValidSubmit="SubmitAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div>
+        <label for="password">Senha</label>
+        <InputText id="password" type="password" @bind-Value="Form.Password" />
+    </div>
+    <div>
+        <label for="confirmation">Confirmação da senha</label>
+        <InputText id="confirmation" type="password" @bind-Value="Form.Confirmation" />
+    </div>
+    <button type="submit" disabled="@IsSubmitting">@(IsSubmitting ? "Concluindo..." : "Concluir cadastro")</button>
+</EditForm>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <p role="status">@Message</p>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "token")]
+    private string? Token { get; set; }
+
+    private readonly FormModel Form = new();
+    private bool IsSubmitting;
+    private string? Message;
+
+    private async Task SubmitAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Token) || Form.Password != Form.Confirmation)
+        {
+            Message = "O link é inválido ou as senhas não conferem.";
+            return;
+        }
+
+        IsSubmitting = true;
+        Message = null;
+        try
+        {
+            var result = await CompleteRegistrationService.ExecuteAsync(
+                new CompleteRegistrationCommand(Token, Form.Password));
+            Message = result is null
+                ? "Não foi possível concluir o cadastro. O link pode estar expirado ou a conta indisponível."
+                : "Cadastro concluído. O acesso será disponibilizado conforme as políticas da conta.";
+        }
+        catch (Exception)
+        {
+            Message = "Não foi possível concluir o cadastro.";
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "Informe uma senha.")]
+        [MinLength(12, ErrorMessage = "A senha deve ter pelo menos 12 caracteres.")]
+        public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Confirme a senha.")]
+        public string Confirmation { get; set; } = string.Empty;
+    }
+}

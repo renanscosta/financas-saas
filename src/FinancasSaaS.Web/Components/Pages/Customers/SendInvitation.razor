@@ -1,0 +1,110 @@
+@page "/platform/customers/invite"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using FinancasSaaS.Application.Platform.Invitations
+@using FinancasSaaS.Web.Security
+@attribute [Authorize(Policy = PlatformPolicies.MutateProvisioning)]
+@inject SendInvitationUseCase SendInvitationService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Enviar convite</PageTitle>
+
+<h1>Enviar convite</h1>
+<p>Envie um link de conclusão de cadastro sem incluir senha na mensagem.</p>
+
+<EditForm Model="Form" OnValidSubmit="SubmitAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div>
+        <label for="customerId">Cliente</label>
+        <InputText id="customerId" @bind-Value="Form.CustomerId" />
+    </div>
+    <div>
+        <label for="tenantId">Tenant</label>
+        <InputText id="tenantId" @bind-Value="Form.TenantId" />
+    </div>
+    <div>
+        <label for="userId">Usuário</label>
+        <InputText id="userId" @bind-Value="Form.UserId" />
+    </div>
+    <div>
+        <label for="recipient">E-mail</label>
+        <InputText id="recipient" @bind-Value="Form.Recipient" type="email" />
+    </div>
+    <button type="submit" disabled="@IsSubmitting">@(IsSubmitting ? "Enviando..." : "Enviar convite")</button>
+</EditForm>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <p role="status">@Message</p>
+}
+
+@code {
+    private readonly FormModel Form = new();
+    private bool IsSubmitting;
+    private string? Message;
+
+    private async Task SubmitAsync()
+    {
+        Message = null;
+        if (!Guid.TryParse(Form.CustomerId, out var customerId) ||
+            !Guid.TryParse(Form.TenantId, out var tenantId) ||
+            !Guid.TryParse(Form.UserId, out var userId))
+        {
+            Message = "Informe identificadores válidos para cliente, tenant e usuário.";
+            return;
+        }
+
+        IsSubmitting = true;
+        try
+        {
+            await SendInvitationService.ExecuteAsync(new SendInvitationCommand(
+                customerId,
+                tenantId,
+                userId,
+                Form.Recipient,
+                Navigation.BaseUri.TrimEnd('/'),
+                await GetActorIdAsync()));
+            Message = "Convite enviado. A mensagem contém somente o link de conclusão.";
+        }
+        catch (ArgumentException exception)
+        {
+            Message = exception.Message;
+        }
+        catch (Exception)
+        {
+            Message = "Não foi possível enviar o convite. Confirme se o cliente está elegível e tente novamente.";
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private async Task<string> GetActorIdAsync()
+    {
+        var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return state.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? state.User.Identity?.Name
+            ?? "unknown";
+    }
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "Informe o cliente.")]
+        public string CustomerId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o tenant.")]
+        public string TenantId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o usuário.")]
+        public string UserId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o e-mail.")]
+        [EmailAddress(ErrorMessage = "Informe um e-mail válido.")]
+        public string Recipient { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,41 @@
+@page
+@model FinancasSaaS.Web.Pages.Account.LoginModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Entrar | Finanças SaaS</title>
+</head>
+
+<body>
+    <main>
+        <h1>Entrar</h1>
+        <form method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="ReturnUrl" />
+            <div asp-validation-summary="ModelOnly"></div>
+            <div>
+                <label asp-for="Input.Email"></label>
+                <input asp-for="Input.Email" autocomplete="username" />
+                <span asp-validation-for="Input.Email"></span>
+            </div>
+            <div>
+                <label asp-for="Input.Password"></label>
+                <input asp-for="Input.Password" autocomplete="current-password" />
+                <span asp-validation-for="Input.Password"></span>
+            </div>
+            <div>
+                <input asp-for="Input.RememberMe" />
+                <label asp-for="Input.RememberMe"></label>
+            </div>
+            <button type="submit">Entrar</button>
+        </form>
+    </main>
+</body>
+
+</html>

@@ -1,0 +1,77 @@
+@page "/platform/customers/register"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using FinancasSaaS.Application.Platform.RegisterCustomer
+@using FinancasSaaS.Web.Security
+@attribute [Authorize(Policy = PlatformPolicies.MutateProvisioning)]
+@inject RegisterCustomerUseCase RegisterCustomer
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Cadastrar cliente</PageTitle>
+
+<h1>Cadastrar cliente</h1>
+<p>Cadastre uma pessoa cliente para iniciar o provisionamento do tenant.</p>
+
+<EditForm Model="Form" OnValidSubmit="SubmitAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div>
+        <label for="email">E-mail</label>
+        <InputText id="email" @bind-Value="Form.Email" />
+    </div>
+    <button type="submit" disabled="@IsSubmitting">@(IsSubmitting ? "Salvando..." : "Cadastrar")</button>
+</EditForm>
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <p role="status">@Message</p>
+}
+
+@code {
+    private readonly FormModel Form = new();
+    private bool IsSubmitting;
+    private string? Message;
+
+    private async Task SubmitAsync()
+    {
+        IsSubmitting = true;
+        Message = null;
+        try
+        {
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var actorId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? authenticationState.User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(actorId))
+            {
+                Message = "Não foi possível identificar o operador autenticado.";
+                return;
+            }
+
+            var result = await RegisterCustomer.ExecuteAsync(new RegisterCustomerCommand(Form.Email, actorId));
+            Message = result.AlreadyExists
+                ? "O cliente já estava cadastrado; nenhum dado foi duplicado."
+                : $"Cliente cadastrado. Tenant: {result.TenantId}";
+        }
+        catch (ArgumentException exception)
+        {
+            Message = exception.Message;
+        }
+        catch (Exception)
+        {
+            Message = "Não foi possível concluir o cadastro. Consulte os registros administrativos.";
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [Required(ErrorMessage = "Informe o e-mail.")]
+        [EmailAddress(ErrorMessage = "Informe um e-mail válido.")]
+        public string Email { get; set; } = string.Empty;
+    }
+}

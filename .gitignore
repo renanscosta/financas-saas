@@ -1,0 +1,66 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+TestResults/
+coverage/
+*.nupkg
+*.snupkg
+packages/
+
+# Visual Studio, VS Code and JetBrains
+.vs/
+.vscode/
+.idea/
+*.user
+*.userosscache
+*.suo
+*.rsuser
+*.userprefs
+*.csproj.user
+*.DotSettings.user
+
+# NuGet and local tooling
+.nuget/
+project.lock.json
+project.fragment.lock.json
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+secrets.json
+secrets.*.json
+*.pfx
+*.p12
+*.key
+*.pem
+*.cer
+*.crt
+
+# Logs, temporary files and local databases
+*.log
+*.tmp
+*.temp
+*.cache
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker/local runtime data
+Dockerfile.local
+docker-data/
+.docker/
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Coverage and generated reports
+*.coverage
+*.coveragexml
+*.trx
+*.html

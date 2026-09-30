@@ -1,0 +1,100 @@
+@page "/platform/customers/provisioning"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using FinancasSaaS.Application.Platform.GetProvisioningStatus
+@using FinancasSaaS.Application.Abstractions
+@using FinancasSaaS.Web.Security
+@attribute [Authorize(Policy = PlatformPolicies.ReadProvisioning)]
+@inject GetProvisioningStatusUseCase GetStatus
+@inject ProvisioningRetryService RetryProvisioning
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Status do provisionamento</PageTitle>
+
+<h1>Status do provisionamento</h1>
+
+<div>
+    <label for="tenantId">Tenant</label>
+    <InputText id="tenantId" @bind-Value="TenantIdText" />
+    <button @onclick="LoadAsync">Consultar</button>
+    <AuthorizeView Policy="@PlatformPolicies.MutateProvisioning">
+        <Authorized>
+            <button @onclick="RetryAsync" disabled="@IsBusy">Retentar provisionamento</button>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+@if (Status is not null)
+{
+    <dl>
+        <dt>Estado</dt>
+        <dd>@Status.Status</dd>
+        <dt>Tentativa</dt>
+        <dd>@Status.Attempt</dd>
+        <dt>Última tentativa</dt>
+        <dd>@Status.LastAttemptAt</dd>
+    </dl>
+    @if (!string.IsNullOrWhiteSpace(Status.LastFailure))
+    {
+        <p role="alert">Falha registrada: @Status.LastFailure</p>
+    }
+}
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <p role="status">@Message</p>
+}
+
+@code {
+    private string TenantIdText = string.Empty;
+    private ProvisioningStatusResult? Status;
+    private string? Message;
+    private bool IsBusy;
+
+    private async Task LoadAsync()
+    {
+        Message = null;
+        if (!Guid.TryParse(TenantIdText, out var tenantId))
+        {
+            Message = "Informe um identificador de tenant válido.";
+            return;
+        }
+
+        Status = await GetStatus.ExecuteAsync(tenantId);
+        if (Status is null)
+        {
+            Message = "Tenant não encontrado ou não disponível para consulta.";
+        }
+    }
+
+    private async Task RetryAsync()
+    {
+        if (!Guid.TryParse(TenantIdText, out var tenantId))
+        {
+            Message = "Informe um identificador de tenant válido.";
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            if (!await RetryProvisioning.ExecuteAsync(authenticationState.User, tenantId))
+            {
+                Message = "Operador sem permissão para retentar o provisionamento.";
+                return;
+            }
+
+            await LoadAsync();
+            Message = "Retentativa concluída.";
+        }
+        catch (Exception)
+        {
+            Message = "A retentativa falhou. Consulte o estado e os registros administrativos.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+}
