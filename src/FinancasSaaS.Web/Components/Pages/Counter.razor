@@ -1,13 +1,14 @@
 ﻿@page "/counter"
-@rendermode InteractiveServer
 
-<PageTitle>Counter</PageTitle>
+<PageTitle>Contador de demonstração</PageTitle>
 
-<h1>Counter</h1>
+<section class="demo-page">
+    <h1>Contador de demonstração</h1>
 
-<p role="status">Current count: @currentCount</p>
+    <p role="status">Contagem atual: @currentCount</p>
 
-<button class="btn btn-primary" @onclick="IncrementCount">Click me</button>
+    <button class="demo-button" @onclick="IncrementCount">Adicionar 1</button>
+</section>
 
 @code {
     private int currentCount = 0;

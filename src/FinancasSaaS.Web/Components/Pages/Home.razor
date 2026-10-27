@@ -1,7 +1,63 @@
 ﻿@page "/"
+@using FinancasSaaS.Web.Security
+@using Microsoft.AspNetCore.Authorization
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Início | Finanças SaaS</PageTitle>
 
-<h1>Hello, world!</h1>
+<section class="welcome-section" aria-labelledby="welcome-title">
+    <p class="eyebrow">PLATAFORMA FINANCEIRA</p>
+    <h1 id="welcome-title">Bem-vindo ao Finanças SaaS</h1>
+    <p class="welcome-description">Acesse as tarefas da plataforma disponíveis para sua conta.</p>
+</section>
 
-Welcome to your new app.
+<AuthorizeView Policy="@PlatformPolicies.ReadProvisioning">
+    <Authorized>
+        <section class="platform-action-grid" aria-label="Ações disponíveis">
+            <AuthorizeView Policy="@PlatformPolicies.MutateProvisioning">
+                <Authorized Context="mutatingUser">
+                    <MudPaper Class="platform-action-card" Elevation="0" Outlined="true">
+                        <MudText Typo="Typo.h6">Cadastrar cliente</MudText>
+                        <MudText Typo="Typo.body2" Class="action-description">Inicie o cadastro e o provisionamento de
+                            uma conta.</MudText>
+                            <MudButton Href="/platform/customers/register" Color="Color.Primary" Variant="Variant.Filled">
+                                Abrir cadastro</MudButton>
+                            </MudPaper>
+                        </Authorized>
+                    </AuthorizeView>
+
+                    <MudPaper Class="platform-action-card" Elevation="0" Outlined="true">
+                        <MudText Typo="Typo.h6">Provisionamento</MudText>
+                        <MudText Typo="Typo.body2" Class="action-description">Consulte o estado atual das contas.</MudText>
+                        <MudButton Href="/platform/customers/provisioning" Color="Color.Primary" Variant="Variant.Outlined">
+                            Consultar estado</MudButton>
+                        </MudPaper>
+
+                        <AuthorizeView Policy="@PlatformPolicies.MutateProvisioning">
+                            <Authorized Context="mutatingUser">
+                                <MudPaper Class="platform-action-card" Elevation="0" Outlined="true">
+                                    <MudText Typo="Typo.h6">Convidar pessoa</MudText>
+                                    <MudText Typo="Typo.body2" Class="action-description">Envie um convite de primeiro acesso.
+                                    </MudText>
+                                    <MudButton Href="/platform/customers/invite" Color="Color.Primary" Variant="Variant.Outlined">
+                                        Enviar convite</MudButton>
+                                    </MudPaper>
+                                    <MudPaper Class="platform-action-card" Elevation="0" Outlined="true">
+                                        <MudText Typo="Typo.h6">Desativar cliente</MudText>
+                                        <MudText Typo="Typo.body2" Class="action-description">Bloqueie acesso preservando os dados.
+                                        </MudText>
+                                        <MudButton Href="/platform/customers/deactivate" Color="Color.Error" Variant="Variant.Outlined">
+                                            Abrir desativação</MudButton>
+                                        </MudPaper>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </section>
+                        </Authorized>
+                        <NotAuthorized>
+                            <MudPaper Class="welcome-login-card" Elevation="0" Outlined="true">
+                                <MudText Typo="Typo.h6">Acesso à plataforma</MudText>
+                                <MudText Typo="Typo.body2" Class="action-description">Entre com sua conta autorizada para continuar.
+                                </MudText>
+                                <MudButton Href="/Account/Login" Color="Color.Primary" Variant="Variant.Filled">Entrar</MudButton>
+                            </MudPaper>
+                        </NotAuthorized>
+                    </AuthorizeView>

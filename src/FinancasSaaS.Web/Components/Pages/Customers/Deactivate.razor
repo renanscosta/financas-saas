@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using FinancasSaaS.Application.Platform.DeactivateCustomer
+@using FinancasSaaS.Web.Components.Ui
 @using FinancasSaaS.Web.Security
 @attribute [Authorize(Policy = PlatformPolicies.MutateProvisioning)]
 @inject DeactivateCustomerUseCase DeactivateCustomer
@@ -17,26 +18,23 @@
 <EditForm Model="Form" OnValidSubmit="SubmitAsync">
     <DataAnnotationsValidator />
     <ValidationSummary />
-    <div>
-        <label for="customerId">Cliente</label>
-        <InputText id="customerId" @bind-Value="Form.CustomerId" />
-    </div>
-    <div>
-        <label for="reason">Motivo</label>
-        <InputTextArea id="reason" @bind-Value="Form.Reason" />
-    </div>
-    <button type="submit" disabled="@IsSubmitting">@(IsSubmitting ? "Desativando..." : "Desativar cliente")</button>
+    <MudTextField id="customerId" @bind-Value="Form.CustomerId" For="@(() => Form.CustomerId)" Label="Cliente"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+    <MudTextField id="reason" @bind-Value="Form.Reason" For="@(() => Form.Reason)" Label="Motivo" Lines="3"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+    <MudButton ButtonType="ButtonType.Submit" Color="Color.Error" Variant="Variant.Filled" Disabled="@IsSubmitting">
+        @(IsSubmitting ? "Desativando..." : "Desativar cliente")
+    </MudButton>
 </EditForm>
 
-@if (!string.IsNullOrWhiteSpace(Message))
-{
-    <p role="status">@Message</p>
-}
+<OperationFeedback State="@(IsSubmitting ? OperationFeedbackState.Loading : FeedbackState)"
+                   Message="@(IsSubmitting ? "Desativando o cliente e bloqueando os convites ativos." : Message)" />
 
 @code {
     private readonly FormModel Form = new();
     private bool IsSubmitting;
     private string? Message;
+    private OperationFeedbackState FeedbackState;
 
     private async Task SubmitAsync()
     {
@@ -44,10 +42,12 @@
         if (!Guid.TryParse(Form.CustomerId, out var customerId))
         {
             Message = "Informe um identificador de cliente válido.";
+            FeedbackState = OperationFeedbackState.Validation;
             return;
         }
 
         IsSubmitting = true;
+        FeedbackState = OperationFeedbackState.Idle;
         try
         {
             var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -56,6 +56,7 @@
             if (string.IsNullOrWhiteSpace(actorId))
             {
                 Message = "Não foi possível identificar o operador autenticado.";
+                FeedbackState = OperationFeedbackState.Error;
                 return;
             }
 
@@ -64,14 +65,17 @@
             Message = result is null
                 ? "Cliente não encontrado ou já desativado."
                 : "Cliente desativado. O acesso foi bloqueado e os convites ativos foram invalidados.";
+            FeedbackState = result is null ? OperationFeedbackState.Validation : OperationFeedbackState.Success;
         }
         catch (ArgumentException exception)
         {
             Message = exception.Message;
+            FeedbackState = OperationFeedbackState.Validation;
         }
         catch (Exception)
         {
             Message = "Não foi possível desativar o cliente. Consulte os registros administrativos.";
+            FeedbackState = OperationFeedbackState.Error;
         }
         finally
         {

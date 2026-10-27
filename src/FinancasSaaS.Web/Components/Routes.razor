@@ -1,6 +1,26 @@
-﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+﻿@using Microsoft.AspNetCore.Components.Authorization
+
+<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="routeData" Selector="h1" />
-    </Found>
-</Router>
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized Context="authenticationState">
+                <LayoutView Layout="typeof(Layout.MainLayout)">
+                    <MudContainer MaxWidth="MaxWidth.Small" Class="py-8">
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined">
+                            @if (authenticationState.User.Identity?.IsAuthenticated == true)
+                            {
+                                <span>Você não tem permissão para acessar esta página.</span>
+                            }
+                            else
+                            {
+                                <span>Entre na sua conta para acessar esta página. <a
+                                    href="/Account/Login">Entrar</a></span>
+                                }
+                            </MudAlert>
+                        </MudContainer>
+                    </LayoutView>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+    </Router>

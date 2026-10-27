@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using FinancasSaaS.Application.Platform.RegisterCustomer
+@using FinancasSaaS.Web.Components.Ui
 @using FinancasSaaS.Web.Security
 @attribute [Authorize(Policy = PlatformPolicies.MutateProvisioning)]
 @inject RegisterCustomerUseCase RegisterCustomer
@@ -17,26 +18,26 @@
 <EditForm Model="Form" OnValidSubmit="SubmitAsync">
     <DataAnnotationsValidator />
     <ValidationSummary />
-    <div>
-        <label for="email">E-mail</label>
-        <InputText id="email" @bind-Value="Form.Email" />
-    </div>
-    <button type="submit" disabled="@IsSubmitting">@(IsSubmitting ? "Salvando..." : "Cadastrar")</button>
+    <MudTextField id="email" @bind-Value="Form.Email" For="@(() => Form.Email)" Label="E-mail"
+                  InputType="InputType.Email" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+    <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@IsSubmitting">
+        @(IsSubmitting ? "Salvando..." : "Cadastrar")
+    </MudButton>
 </EditForm>
 
-@if (!string.IsNullOrWhiteSpace(Message))
-{
-    <p role="status">@Message</p>
-}
+<OperationFeedback State="@(IsSubmitting ? OperationFeedbackState.Loading : FeedbackState)"
+                   Message="@(IsSubmitting ? "Cadastrando o cliente e iniciando o provisionamento." : Message)" />
 
 @code {
     private readonly FormModel Form = new();
     private bool IsSubmitting;
     private string? Message;
+    private OperationFeedbackState FeedbackState;
 
     private async Task SubmitAsync()
     {
         IsSubmitting = true;
+        FeedbackState = OperationFeedbackState.Idle;
         Message = null;
         try
         {
@@ -46,6 +47,7 @@
             if (string.IsNullOrWhiteSpace(actorId))
             {
                 Message = "Não foi possível identificar o operador autenticado.";
+                FeedbackState = OperationFeedbackState.Error;
                 return;
             }
 
@@ -53,14 +55,17 @@
             Message = result.AlreadyExists
                 ? "O cliente já estava cadastrado; nenhum dado foi duplicado."
                 : $"Cliente cadastrado. Tenant: {result.TenantId}";
+            FeedbackState = OperationFeedbackState.Success;
         }
         catch (ArgumentException exception)
         {
             Message = exception.Message;
+            FeedbackState = OperationFeedbackState.Validation;
         }
         catch (Exception)
         {
             Message = "Não foi possível concluir o cadastro. Consulte os registros administrativos.";
+            FeedbackState = OperationFeedbackState.Error;
         }
         finally
         {

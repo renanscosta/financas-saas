@@ -66,6 +66,74 @@ public sealed class AuthenticationEndToEndTests : IAsyncLifetime
         Assert.Contains("Account/AccessDenied", protectedPage.Headers.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task NavegacaoDaPlataformaRespeitaPermissoesDoOperador()
+    {
+        using var administratorClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await LoginAsync(administratorClient, administratorEmail);
+
+        var administratorHome = await administratorClient.GetStringAsync("/");
+        Assert.Contains("href=\"platform/customers/register\"", administratorHome, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"platform/customers/deactivate\"", administratorHome, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"platform/customers/invite\"", administratorHome, StringComparison.OrdinalIgnoreCase);
+
+        using var readonlyClient = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await LoginAsync(readonlyClient, readonlyEmail);
+
+        var readonlyHome = await readonlyClient.GetStringAsync("/");
+        Assert.Contains("href=\"platform/customers/provisioning\"", readonlyHome, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href=\"platform/customers/register\"", readonlyHome, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href=\"platform/customers/deactivate\"", readonlyHome, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href=\"platform/customers/invite\"", readonlyHome, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LogoutPostComAntifalsificacaoEncerraSessao()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await LoginAsync(client, administratorEmail);
+
+        var home = await client.GetStringAsync("/");
+        Assert.Contains("action=\"/Account/Logout\"", home, StringComparison.OrdinalIgnoreCase);
+        var token = Regex.Match(home, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+        Assert.False(string.IsNullOrWhiteSpace(token));
+
+        var logout = await client.PostAsync("/Account/Logout", new FormUrlEncodedContent(
+        [
+            new KeyValuePair<string, string>("__RequestVerificationToken", token)
+        ]));
+
+        Assert.Equal(HttpStatusCode.Redirect, logout.StatusCode);
+        var protectedPage = await client.GetAsync("/platform/customers/register");
+        Assert.Equal(HttpStatusCode.Redirect, protectedPage.StatusCode);
+        Assert.Contains("Account/Login", protectedPage.Headers.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task VisitanteNaoAcessaRotaAdministrativaDiretamente()
+    {
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var protectedPage = await client.GetAsync("/platform/customers/register");
+
+        Assert.Equal(HttpStatusCode.Redirect, protectedPage.StatusCode);
+        Assert.Contains("Account/Login", protectedPage.Headers.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LoginApresentaRotulosProgramaticosParaCampos()
+    {
+        using var client = factory.CreateClient();
+
+        var html = await client.GetStringAsync("/Account/Login");
+
+        Assert.Contains("<label for=\"email\">E-mail</label>", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"Input.Email\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<label for=\"password\">Senha</label>", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("name=\"Input.Password\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<label for=\"remember-me\">Lembrar de mim</label>", html, StringComparison.OrdinalIgnoreCase);
+    }
+
     public Task DisposeAsync()
     {
         factory.Dispose();

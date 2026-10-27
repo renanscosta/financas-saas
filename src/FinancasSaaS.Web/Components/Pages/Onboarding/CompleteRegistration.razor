@@ -1,32 +1,38 @@
 @page "/concluir-cadastro"
+@layout OnboardingLayout
 @using System.ComponentModel.DataAnnotations
 @using FinancasSaaS.Application.Platform.CompleteRegistration
+@using FinancasSaaS.Web.Components.Ui
 @inject CompleteRegistrationUseCase CompleteRegistrationService
 @inject NavigationManager Navigation
 
 <PageTitle>Concluir cadastro</PageTitle>
 
-<h1>Concluir cadastro</h1>
-<p>Defina sua senha para concluir o acesso à sua conta.</p>
+<MudPaper Class="onboarding-card" Elevation="0" Outlined="true">
+    <p class="eyebrow">PRIMEIRO ACESSO</p>
+    <MudText Typo="Typo.h4" HtmlTag="h1">Concluir cadastro</MudText>
+    <MudText Typo="Typo.body1" Class="onboarding-intro">Defina sua senha para concluir o acesso à sua conta.</MudText>
 
-<EditForm Model="Form" OnValidSubmit="SubmitAsync">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
-    <div>
+    <EditForm Model="Form" OnValidSubmit="SubmitAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
         <label for="password">Senha</label>
-        <InputText id="password" type="password" @bind-Value="Form.Password" />
-    </div>
-    <div>
+        <MudTextField id="password" @bind-Value="Form.Password" For="@(() => Form.Password)"
+                      InputType="InputType.Password" autocomplete="new-password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Required="true" />
         <label for="confirmation">Confirmação da senha</label>
-        <InputText id="confirmation" type="password" @bind-Value="Form.Confirmation" />
-    </div>
-    <button type="submit" disabled="@IsSubmitting">@(IsSubmitting ? "Concluindo..." : "Concluir cadastro")</button>
-</EditForm>
+        <MudTextField id="confirmation" @bind-Value="Form.Confirmation" For="@(() => Form.Confirmation)"
+                      InputType="InputType.Password" autocomplete="new-password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Required="true" />
+        <MudButton Class="onboarding-submit" ButtonType="ButtonType.Submit" Color="Color.Primary"
+                   Variant="Variant.Filled" Disabled="@IsSubmitting" FullWidth="true">
+            @(IsSubmitting ? "Concluindo..." : "Concluir cadastro")
+        </MudButton>
+    </EditForm>
 
-@if (!string.IsNullOrWhiteSpace(Message))
-{
-    <p role="status">@Message</p>
-}
+    <OperationFeedback State="@(IsSubmitting ? OperationFeedbackState.Loading : FeedbackState)"
+                       Message="@(IsSubmitting ? "Concluindo o cadastro com segurança." : Message)" />
+</MudPaper>
 
 @code {
     [SupplyParameterFromQuery(Name = "token")]
@@ -35,16 +41,19 @@
     private readonly FormModel Form = new();
     private bool IsSubmitting;
     private string? Message;
+    private OperationFeedbackState FeedbackState;
 
     private async Task SubmitAsync()
     {
         if (string.IsNullOrWhiteSpace(Token) || Form.Password != Form.Confirmation)
         {
             Message = "O link é inválido ou as senhas não conferem.";
+            FeedbackState = OperationFeedbackState.Validation;
             return;
         }
 
         IsSubmitting = true;
+        FeedbackState = OperationFeedbackState.Idle;
         Message = null;
         try
         {
@@ -53,10 +62,12 @@
             Message = result is null
                 ? "Não foi possível concluir o cadastro. O link pode estar expirado ou a conta indisponível."
                 : "Cadastro concluído. O acesso será disponibilizado conforme as políticas da conta.";
+            FeedbackState = result is null ? OperationFeedbackState.Error : OperationFeedbackState.Success;
         }
         catch (Exception)
         {
             Message = "Não foi possível concluir o cadastro.";
+            FeedbackState = OperationFeedbackState.Error;
         }
         finally
         {
