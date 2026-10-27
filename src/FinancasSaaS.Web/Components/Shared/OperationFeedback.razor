@@ -1,0 +1,62 @@
+@using FinancasSaaS.Web.Components.Ui
+
+@if (VisibleMessage is not null)
+{
+    <div class="operation-feedback operation-feedback-@StateName" role="@Role" aria-live="@LiveMode" aria-atomic="true"
+         data-state="@StateName">
+        <span class="operation-feedback-icon" aria-hidden="true">@Icon</span>
+        <span>@VisibleMessage</span>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public OperationFeedbackState State { get; set; }
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    private string StateName => State.ToString().ToLowerInvariant();
+
+    private string Role => State is OperationFeedbackState.Error or OperationFeedbackState.Validation
+        ? "alert"
+        : "status";
+
+    private string LiveMode => State is OperationFeedbackState.Error or OperationFeedbackState.Validation
+        ? "assertive"
+        : "polite";
+
+    private string Icon => State switch
+    {
+        OperationFeedbackState.Loading => "…",
+        OperationFeedbackState.Success => "✓",
+        OperationFeedbackState.Error => "!",
+        OperationFeedbackState.Validation => "!",
+        _ => string.Empty
+    };
+
+    private string? VisibleMessage
+    {
+        get
+        {
+            if (State == OperationFeedbackState.Idle)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(Message))
+            {
+                return Message;
+            }
+
+            return State switch
+            {
+                OperationFeedbackState.Loading => "A operação está em andamento.",
+                OperationFeedbackState.Success => "A operação foi concluída.",
+                OperationFeedbackState.Error => "Não foi possível concluir a operação. Tente novamente.",
+                OperationFeedbackState.Validation => "Revise os dados informados e corrija os campos destacados.",
+                _ => null
+            };
+        }
+    }
+}

@@ -1,42 +1,51 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">FinancasSaaS.Web</a>
-    </div>
-</div>
+﻿@using FinancasSaaS.Web.Security
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<div class="platform-navigation">
+    <button class="navigation-toggle" type="button" aria-expanded="@(IsMenuOpen ? "true" : "false")"
+            aria-controls="platform-nav" @onclick="ToggleMenu">
+        <span aria-hidden="true">☰</span>
+        <span>Menu</span>
+    </button>
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
+    <nav id="platform-nav" class="platform-nav @(IsMenuOpen ? "is-open" : string.Empty)"
+         aria-label="Navegação da plataforma">
+        <NavLink class="platform-nav-link" href="/" Match="NavLinkMatch.All" @onclick="CloseMenu">Início</NavLink>
+        <AuthorizeView Policy="@PlatformPolicies.MutateProvisioning">
+            <Authorized>
+                <NavLink class="platform-nav-link" href="platform/customers/register" @onclick="CloseMenu">Cadastrar
+                    cliente</NavLink>
+                    <NavLink class="platform-nav-link" href="platform/customers/deactivate" @onclick="CloseMenu">Desativar
+                        cliente</NavLink>
+                        <NavLink class="platform-nav-link" href="platform/customers/invite" @onclick="CloseMenu">Enviar convite
+                        </NavLink>
+                    </Authorized>
+                </AuthorizeView>
+                <AuthorizeView Policy="@PlatformPolicies.ReadProvisioning">
+                    <Authorized>
+                        <NavLink class="platform-nav-link" href="platform/customers/provisioning" @onclick="CloseMenu">
+                            Provisionamento</NavLink>
+                        </Authorized>
+                    </AuthorizeView>
+                    <AuthorizeView>
+                        <Authorized Context="authState">
+                            <span class="navigation-user" title="Conta autenticada">@authState.User.Identity?.Name</span>
+                            <form class="logout-form" action="/Account/Logout" method="post" data-enhance="false">
+                                <AntiforgeryToken />
+                                <button class="logout-button" type="submit">Sair da conta</button>
+                            </form>
+                        </Authorized>
+                        <NotAuthorized>
+                            <a class="platform-nav-link" href="/Account/Login">Entrar</a>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </nav>
+            </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="platform/customers/register">
-                <span class="bi bi-person-plus-fill" aria-hidden="true"></span> Cadastrar cliente
-            </NavLink>
-        </div>
+@code {
+    private bool IsMenuOpen;
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="platform/customers/provisioning">
-                <span class="bi bi-activity" aria-hidden="true"></span> Provisionamento
-            </NavLink>
-        </div>
+    private void ToggleMenu() => IsMenuOpen = !IsMenuOpen;
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="platform/customers/deactivate">
-                <span class="bi bi-person-x-fill" aria-hidden="true"></span> Desativar cliente
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="platform/customers/invite">
-                <span class="bi bi-envelope-plus-fill" aria-hidden="true"></span> Enviar convite
-            </NavLink>
-        </div>
-    </nav>
-</div>
+    private void CloseMenu() => IsMenuOpen = false;
+}
 

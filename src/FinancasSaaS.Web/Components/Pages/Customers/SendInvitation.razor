@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using FinancasSaaS.Application.Platform.Invitations
+@using FinancasSaaS.Web.Components.Ui
 @using FinancasSaaS.Web.Security
 @attribute [Authorize(Policy = PlatformPolicies.MutateProvisioning)]
 @inject SendInvitationUseCase SendInvitationService
@@ -18,34 +19,27 @@
 <EditForm Model="Form" OnValidSubmit="SubmitAsync">
     <DataAnnotationsValidator />
     <ValidationSummary />
-    <div>
-        <label for="customerId">Cliente</label>
-        <InputText id="customerId" @bind-Value="Form.CustomerId" />
-    </div>
-    <div>
-        <label for="tenantId">Tenant</label>
-        <InputText id="tenantId" @bind-Value="Form.TenantId" />
-    </div>
-    <div>
-        <label for="userId">Usuário</label>
-        <InputText id="userId" @bind-Value="Form.UserId" />
-    </div>
-    <div>
-        <label for="recipient">E-mail</label>
-        <InputText id="recipient" @bind-Value="Form.Recipient" type="email" />
-    </div>
-    <button type="submit" disabled="@IsSubmitting">@(IsSubmitting ? "Enviando..." : "Enviar convite")</button>
+    <MudTextField id="customerId" @bind-Value="Form.CustomerId" For="@(() => Form.CustomerId)" Label="Cliente"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+    <MudTextField id="tenantId" @bind-Value="Form.TenantId" For="@(() => Form.TenantId)" Label="Tenant"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+    <MudTextField id="userId" @bind-Value="Form.UserId" For="@(() => Form.UserId)" Label="Usuário"
+                  Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+    <MudTextField id="recipient" @bind-Value="Form.Recipient" For="@(() => Form.Recipient)" Label="E-mail"
+                  InputType="InputType.Email" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+    <MudButton ButtonType="ButtonType.Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@IsSubmitting">
+        @(IsSubmitting ? "Enviando..." : "Enviar convite")
+    </MudButton>
 </EditForm>
 
-@if (!string.IsNullOrWhiteSpace(Message))
-{
-    <p role="status">@Message</p>
-}
+<OperationFeedback State="@(IsSubmitting ? OperationFeedbackState.Loading : FeedbackState)"
+                   Message="@(IsSubmitting ? "Enviando o convite para a pessoa destinatária." : Message)" />
 
 @code {
     private readonly FormModel Form = new();
     private bool IsSubmitting;
     private string? Message;
+    private OperationFeedbackState FeedbackState;
 
     private async Task SubmitAsync()
     {
@@ -55,10 +49,12 @@
             !Guid.TryParse(Form.UserId, out var userId))
         {
             Message = "Informe identificadores válidos para cliente, tenant e usuário.";
+            FeedbackState = OperationFeedbackState.Validation;
             return;
         }
 
         IsSubmitting = true;
+        FeedbackState = OperationFeedbackState.Idle;
         try
         {
             await SendInvitationService.ExecuteAsync(new SendInvitationCommand(
@@ -69,14 +65,17 @@
                 Navigation.BaseUri.TrimEnd('/'),
                 await GetActorIdAsync()));
             Message = "Convite enviado. A mensagem contém somente o link de conclusão.";
+            FeedbackState = OperationFeedbackState.Success;
         }
         catch (ArgumentException exception)
         {
             Message = exception.Message;
+            FeedbackState = OperationFeedbackState.Validation;
         }
         catch (Exception)
         {
             Message = "Não foi possível enviar o convite. Confirme se o cliente está elegível e tente novamente.";
+            FeedbackState = OperationFeedbackState.Error;
         }
         finally
         {

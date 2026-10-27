@@ -1,0 +1,53 @@
+.operation-feedback {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-block: 1rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    color: var(--app-text);
+    line-height: 1.5;
+}
+
+.operation-feedback-icon {
+    display: inline-grid;
+    width: 1.5rem;
+    height: 1.5rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 800;
+}
+
+.operation-feedback-loading {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+}
+
+.operation-feedback-success {
+    border-color: #86efac;
+    background: #f0fdf4;
+    color: var(--app-success);
+}
+
+.operation-feedback-error,
+.operation-feedback-validation {
+    border-color: #fca5a5;
+    background: #fef2f2;
+    color: var(--app-error);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .operation-feedback-loading .operation-feedback-icon {
+        animation: feedback-pulse 1.3s ease-in-out infinite;
+    }
+
+    @keyframes feedback-pulse {
+        50% {
+            opacity: 0.45;
+        }
+    }
+}

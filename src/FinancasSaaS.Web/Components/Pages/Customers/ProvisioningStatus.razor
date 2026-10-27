@@ -4,6 +4,7 @@
 @using FinancasSaaS.Application.Platform.GetProvisioningStatus
 @using FinancasSaaS.Application.Abstractions
 @using FinancasSaaS.Web.Security
+@using FinancasSaaS.Web.Components.Ui
 @attribute [Authorize(Policy = PlatformPolicies.ReadProvisioning)]
 @inject GetProvisioningStatusUseCase GetStatus
 @inject ProvisioningRetryService RetryProvisioning
@@ -13,43 +14,54 @@
 
 <h1>Status do provisionamento</h1>
 
-<div>
-    <label for="tenantId">Tenant</label>
-    <InputText id="tenantId" @bind-Value="TenantIdText" />
-    <button @onclick="LoadAsync">Consultar</button>
-    <AuthorizeView Policy="@PlatformPolicies.MutateProvisioning">
-        <Authorized>
-            <button @onclick="RetryAsync" disabled="@IsBusy">Retentar provisionamento</button>
-        </Authorized>
-    </AuthorizeView>
-</div>
+<div class="provisioning-query">
+    <MudTextField id="tenantId" @bind-Value="TenantIdText" Label="Tenant" Variant="Variant.Outlined"
+                  Margin="Margin.Dense" />
+    <MudButton OnClick="LoadAsync" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(IsBusy || IsLoading)">
+        Consultar</MudButton>
+        <AuthorizeView Policy="@PlatformPolicies.MutateProvisioning">
+            <Authorized>
+                <MudButton OnClick="RetryAsync" Color="Color.Secondary" Variant="Variant.Outlined"
+                           Disabled="@(IsBusy || IsLoading)">Retentar provisionamento</MudButton>
+            </Authorized>
+        </AuthorizeView>
+    </div>
 
-@if (Status is not null)
-{
-    <dl>
-        <dt>Estado</dt>
-        <dd>@Status.Status</dd>
-        <dt>Tentativa</dt>
-        <dd>@Status.Attempt</dd>
-        <dt>Última tentativa</dt>
-        <dd>@Status.LastAttemptAt</dd>
-    </dl>
-    @if (!string.IsNullOrWhiteSpace(Status.LastFailure))
+    @if (Status is not null)
     {
-        <p role="alert">Falha registrada: @Status.LastFailure</p>
+        <dl>
+            <dt>Estado</dt>
+            <dd>@Status.Status</dd>
+            <dt>Tentativa</dt>
+            <dd>@Status.Attempt</dd>
+            <dt>Última tentativa</dt>
+            <dd>@Status.LastAttemptAt</dd>
+        </dl>
+        @if (!string.IsNullOrWhiteSpace(Status.LastFailure))
+        {
+            <p role="alert">Falha registrada: @Status.LastFailure</p>
+        }
     }
-}
 
-@if (!string.IsNullOrWhiteSpace(Message))
-{
-    <p role="status">@Message</p>
-}
+<OperationFeedback State="@CurrentFeedbackState" Message="@CurrentFeedbackMessage" />
 
 @code {
     private string TenantIdText = string.Empty;
     private ProvisioningStatusResult? Status;
     private string? Message;
     private bool IsBusy;
+    private bool IsLoading;
+    private OperationFeedbackState FeedbackState;
+
+    private OperationFeedbackState CurrentFeedbackState => IsBusy || IsLoading
+        ? OperationFeedbackState.Loading
+        : FeedbackState;
+
+    private string? CurrentFeedbackMessage => IsBusy
+        ? "Retentando o provisionamento no tenant existente."
+        : IsLoading
+            ? "Consultando o estado do provisionamento."
+            : Message;
 
     private async Task LoadAsync()
     {
@@ -57,13 +69,36 @@
         if (!Guid.TryParse(TenantIdText, out var tenantId))
         {
             Message = "Informe um identificador de tenant válido.";
+            FeedbackState = OperationFeedbackState.Validation;
             return;
         }
 
-        Status = await GetStatus.ExecuteAsync(tenantId);
-        if (Status is null)
+        IsLoading = true;
+        FeedbackState = OperationFeedbackState.Idle;
+        Message = null;
+        try
         {
-            Message = "Tenant não encontrado ou não disponível para consulta.";
+            Status = await GetStatus.ExecuteAsync(tenantId);
+            if (Status is null)
+            {
+                Message = "Tenant não encontrado ou não disponível para consulta.";
+                FeedbackState = OperationFeedbackState.Validation;
+            }
+            else
+            {
+                Message = "Estado do provisionamento consultado.";
+                FeedbackState = OperationFeedbackState.Success;
+            }
+        }
+        catch (Exception)
+        {
+            Status = null;
+            Message = "Não foi possível consultar o estado. Tente novamente.";
+            FeedbackState = OperationFeedbackState.Error;
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 
@@ -72,25 +107,34 @@
         if (!Guid.TryParse(TenantIdText, out var tenantId))
         {
             Message = "Informe um identificador de tenant válido.";
+            FeedbackState = OperationFeedbackState.Validation;
             return;
         }
 
         IsBusy = true;
+        FeedbackState = OperationFeedbackState.Idle;
+        Message = null;
         try
         {
             var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             if (!await RetryProvisioning.ExecuteAsync(authenticationState.User, tenantId))
             {
                 Message = "Operador sem permissão para retentar o provisionamento.";
+                FeedbackState = OperationFeedbackState.Error;
                 return;
             }
 
             await LoadAsync();
-            Message = "Retentativa concluída.";
+            if (FeedbackState == OperationFeedbackState.Success)
+            {
+                Message = "Retentativa concluída.";
+                FeedbackState = OperationFeedbackState.Success;
+            }
         }
         catch (Exception)
         {
             Message = "A retentativa falhou. Consulte o estado e os registros administrativos.";
+            FeedbackState = OperationFeedbackState.Error;
         }
         finally
         {

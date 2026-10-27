@@ -17,6 +17,7 @@ using FinancasSaaS.Application.Platform.RegisterCustomer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,6 +58,7 @@ builder.Services.AddHealthChecks()
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddMudServices();
 builder.Services.AddRazorPages();
 builder.Services.AddCascadingAuthenticationState();
 

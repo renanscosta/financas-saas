@@ -1,23 +1,25 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
+<MudBlazorProviders />
+
+<div class="platform-shell">
+    <header class="platform-header">
+        <a class="platform-brand" href="/" aria-label="Finanças SaaS — início">
+            <span class="brand-mark" aria-hidden="true">F</span>
+            <span>Finanças <strong>SaaS</strong></span>
+        </a>
         <NavMenu />
-    </div>
+    </header>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
+    <main id="main-content" class="platform-main">
+        <div class="platform-page-content">
             @Body
-        </article>
+        </div>
     </main>
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar a página</a>
+    <span class="dismiss" role="button" tabindex="0" aria-label="Dispensar aviso">×</span>
 </div>

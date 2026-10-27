@@ -10,6 +10,102 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Entrar | Finanças SaaS</title>
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+            body {
+                display: grid;
+                min-height: 100vh;
+                place-items: center;
+                padding: 1rem;
+            }
+
+            main {
+                box-sizing: border-box;
+                width: min(100%, 28rem);
+                padding: clamp(1.5rem, 5vw, 2.5rem);
+                border: 1px solid var(--app-border);
+                border-radius: 1rem;
+                background: var(--app-surface);
+                box-shadow: 0 20px 50px rgb(15 23 42 / 8%);
+            }
+
+            h1 {
+                margin-top: 0;
+                color: var(--app-text);
+                letter-spacing: 0;
+            }
+
+            main>p {
+                color: var(--app-text-muted);
+            }
+
+            form>div {
+                margin-block: 1rem;
+            }
+
+            label {
+                display: block;
+                margin-bottom: 0.35rem;
+                font-weight: 600;
+            }
+
+            input:not([type="checkbox"]) {
+                box-sizing: border-box;
+                width: 100%;
+                min-height: 2.75rem;
+                padding: 0.65rem 0.75rem;
+                border: 1px solid var(--app-border);
+                border-radius: 0.5rem;
+            }
+
+            input[type="checkbox"] {
+                accent-color: var(--app-primary);
+            }
+
+            form>div:has(input[type="checkbox"]) {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            form>div:has(input[type="checkbox"]) label {
+                margin: 0;
+            }
+
+            .login-validation-summary {
+                margin-bottom: 1rem;
+                padding: 0.75rem 1rem;
+                border: 1px solid #fca5a5;
+                border-radius: 0.5rem;
+                background: #fef2f2;
+                color: var(--app-error);
+            }
+
+            .login-validation-summary ul {
+                margin: 0;
+                padding-left: 1.25rem;
+            }
+
+            button {
+                min-height: 2.75rem;
+                padding: 0.65rem 1rem;
+                border: 0;
+                border-radius: 0.5rem;
+                background: var(--app-primary);
+                color: white;
+                font-weight: 650;
+                cursor: pointer;
+            }
+
+            button:hover {
+                background: var(--app-primary-hover);
+            }
+
+            [asp-validation-summary],
+            .field-validation-error {
+                color: var(--app-error);
+            }
+    </style>
 </head>
 
 <body>
@@ -17,21 +113,30 @@
         <h1>Entrar</h1>
         <form method="post">
             @Html.AntiForgeryToken()
-            <input type="hidden" asp-for="ReturnUrl" />
-            <div asp-validation-summary="ModelOnly"></div>
+            <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="login-validation-summary" role="alert" aria-live="assertive">
+                    <ul>
+                        @foreach (var error in ViewData.ModelState.Values.SelectMany(value => value.Errors))
+                        {
+                            <li>@error.ErrorMessage</li>
+                        }
+                    </ul>
+                </div>
+            }
             <div>
-                <label asp-for="Input.Email"></label>
-                <input asp-for="Input.Email" autocomplete="username" />
-                <span asp-validation-for="Input.Email"></span>
+                <label for="email">E-mail</label>
+                <input id="email" name="Input.Email" type="email" value="@Model.Input.Email" autocomplete="username"
+                       required />
             </div>
             <div>
-                <label asp-for="Input.Password"></label>
-                <input asp-for="Input.Password" autocomplete="current-password" />
-                <span asp-validation-for="Input.Password"></span>
+                <label for="password">Senha</label>
+                <input id="password" name="Input.Password" type="password" autocomplete="current-password" required />
             </div>
             <div>
-                <input asp-for="Input.RememberMe" />
-                <label asp-for="Input.RememberMe"></label>
+                <input id="remember-me" name="Input.RememberMe" type="checkbox" value="true" />
+                <label for="remember-me">Lembrar de mim</label>
             </div>
             <button type="submit">Entrar</button>
         </form>

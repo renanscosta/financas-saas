@@ -1,0 +1,25 @@
+<MudThemeProvider Theme="@Theme" />
+<MudPopoverProvider />
+
+@code {
+    private static readonly MudTheme Theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#0F766E",
+            Secondary = "#0E7490",
+            Background = "#F8FAFC",
+            Surface = "#FFFFFF",
+            AppbarBackground = "#FFFFFF",
+            AppbarText = "#0F172A",
+            DrawerBackground = "#0F172A",
+            DrawerText = "#F8FAFC",
+            TextPrimary = "#0F172A",
+            TextSecondary = "#475569",
+            Success = "#15803D",
+            Warning = "#B45309",
+            Error = "#B91C1C",
+            Info = "#0369A1"
+        }
+    };
+}

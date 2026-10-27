@@ -1,40 +1,44 @@
 ﻿@page "/weather"
 @attribute [StreamRendering]
 
-<PageTitle>Weather</PageTitle>
+<PageTitle>Previsão do tempo — demonstração</PageTitle>
 
-<h1>Weather</h1>
+<section class="demo-page">
+    <h1>Previsão do tempo — demonstração</h1>
 
-<p>This component demonstrates showing data.</p>
+    <p>Dados de demonstração, sem relação com informações financeiras da conta.</p>
 
-@if (forecasts == null)
-{
-    <p><em>Loading...</em></p>
-}
-else
-{
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th aria-label="Temperature in Celsius">Temp. (C)</th>
-                <th aria-label="Temperature in Fahrenheit">Temp. (F)</th>
-                <th>Summary</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var forecast in forecasts)
-            {
-                <tr>
-                    <td>@forecast.Date.ToShortDateString()</td>
-                    <td>@forecast.TemperatureC</td>
-                    <td>@forecast.TemperatureF</td>
-                    <td>@forecast.Summary</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+    @if (forecasts == null)
+    {
+        <p><em>Carregando dados de demonstração...</em></p>
+    }
+    else
+    {
+        <div class="demo-table-container">
+            <table class="demo-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th aria-label="Temperatura em Celsius">Temp. (°C)</th>
+                        <th aria-label="Temperatura em Fahrenheit">Temp. (°F)</th>
+                        <th>Resumo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var forecast in forecasts)
+                    {
+                        <tr>
+                            <td>@forecast.Date.ToShortDateString()</td>
+                            <td>@forecast.TemperatureC</td>
+                            <td>@forecast.TemperatureF</td>
+                            <td>@forecast.Summary</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
 
 @code {
     private WeatherForecast[]? forecasts;
@@ -45,7 +49,8 @@ else
         await Task.Delay(500);
 
         var startDate = DateOnly.FromDateTime(DateTime.Now);
-        var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
+        var summaries = new[] { "Muito frio", "Frio", "Fresco", "Ameno", "Suave", "Morno", "Quente", "Muito quente",
+"Escaldante", "Extremo" };
         forecasts = Enumerable.Range(1, 5).Select(index => new WeatherForecast
         {
             Date = startDate.AddDays(index),

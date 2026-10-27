@@ -1,0 +1,14 @@
+@inherits LayoutComponentBase
+
+<MudBlazorProviders />
+
+<main class="onboarding-shell" id="main-content">
+    <a class="onboarding-brand" href="/" aria-label="Finanças SaaS — início">
+        <span class="brand-mark" aria-hidden="true">F</span>
+        <span>Finanças <strong>SaaS</strong></span>
+    </a>
+    <section class="onboarding-content">
+        @Body
+    </section>
+    <p class="onboarding-footer">Acesso seguro à sua conta financeira.</p>
+</main>
