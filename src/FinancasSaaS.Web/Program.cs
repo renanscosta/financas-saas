@@ -14,10 +14,14 @@ using FinancasSaaS.Application.Platform.GetProvisioningStatus;
 using FinancasSaaS.Application.Platform.Invitations;
 using FinancasSaaS.Application.Platform.ProvisionTenant;
 using FinancasSaaS.Application.Platform.RegisterCustomer;
+using FinancasSaaS.Application.Finance.Categories;
+using FinancasSaaS.Application.Finance.ManualTransactions;
+using FinancasSaaS.Application.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using FinancasSaaS.Finance.Infrastructure.Provisioning;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +45,7 @@ builder.Services.AddAuthorizationBuilder()
         policy.AddRequirements(new TenantAccessRequirement());
     });
 builder.Services.AddScoped<IAuthorizationHandler, TenantAccessAuthorizationHandler>();
+builder.Services.AddScoped<ICurrentUserContext, BlazorCurrentUserContext>();
 builder.Services.AddScoped<ProvisioningRetryService>();
 builder.Services.AddPlatformInfrastructure(builder.Configuration);
 builder.Services.AddFinanceInfrastructure();
@@ -51,6 +56,8 @@ builder.Services.AddScoped<IssueInvitationUseCase>();
 builder.Services.AddScoped<SendInvitationUseCase>();
 builder.Services.AddScoped<CompleteRegistrationUseCase>();
 builder.Services.AddScoped<DeactivateCustomerUseCase>();
+builder.Services.AddScoped<CategoryService>();
+builder.Services.AddScoped<ManualTransactionService>();
 builder.Services.Configure<MailpitOptions>(builder.Configuration.GetSection("Mailpit"));
 builder.Services.AddHealthChecks()
     .AddCheck<PlatformDatabaseHealthCheck>("postgresql")
@@ -63,6 +70,15 @@ builder.Services.AddRazorPages();
 builder.Services.AddCascadingAuthenticationState();
 
 var app = builder.Build();
+
+if (FinanceMigrationCommand.IsCommand(args))
+{
+    using var commandScope = app.Services.CreateScope();
+    var runner = commandScope.ServiceProvider.GetRequiredService<TenantFinanceMigrationRunner>();
+    var command = new FinanceMigrationCommand(runner);
+    Environment.ExitCode = await command.ExecuteAsync(args);
+    return;
+}
 
 if (builder.Configuration.GetValue<bool>("IdentitySeed:Enabled"))
 {

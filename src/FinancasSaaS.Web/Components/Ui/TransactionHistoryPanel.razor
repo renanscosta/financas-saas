@@ -1,0 +1,41 @@
+@using FinancasSaaS.Domain.Finance
+
+@if (IsLoading)
+{
+    <p role="status">Consultando histórico...</p>
+}
+else if (ErrorMessage is not null)
+{
+    <p role="alert">@ErrorMessage</p>
+}
+else if (Events.Count == 0)
+{
+    <p>Não há correções ou cancelamentos registrados.</p>
+}
+else
+{
+    @foreach (var audit in Events)
+    {
+        <article>
+            <p>@(audit.EventType == "Correction" ? "Correção" : "Cancelamento") · @audit.OccurredAt.ToString("u")</p>
+            <p>Responsável: @audit.ActorId · Motivo: @audit.Reason</p>
+            <ul>
+                @foreach (var change in audit.Changes)
+                {
+                    <li>@change.Field: @change.PreviousValue → @change.NewValue</li>
+                }
+            </ul>
+        </article>
+    }
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<ManualTransactionAuditEvent> Events { get; set; } = [];
+
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+}

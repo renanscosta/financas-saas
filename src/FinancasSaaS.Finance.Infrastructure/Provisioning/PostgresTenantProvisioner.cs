@@ -1,4 +1,5 @@
 using FinancasSaaS.Application.Abstractions;
+using DomainCategory = FinancasSaaS.Domain.Finance.Category;
 using FinancasSaaS.Finance.Infrastructure.Persistence;
 using FinancasSaaS.Finance.Infrastructure.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -33,9 +34,16 @@ public sealed class PostgresTenantProvisioner(
 
             foreach (var categoryName in DefaultCategories)
             {
-                if (!await tenantDb.Categories.AnyAsync(item => item.Name == categoryName, cancellationToken))
+                var normalizedName = DomainCategory.NormalizeName(categoryName);
+                var existing = await tenantDb.Categories
+                    .SingleOrDefaultAsync(item => item.NormalizedName == normalizedName, cancellationToken);
+                if (existing is null)
                 {
                     tenantDb.Categories.Add(new Category { Id = Guid.NewGuid(), Name = categoryName, IsActive = true });
+                }
+                else if (!existing.IsActive)
+                {
+                    existing.IsActive = true;
                 }
             }
 

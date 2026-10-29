@@ -1,4 +1,5 @@
 using FinancasSaaS.Application.Abstractions;
+using FinancasSaaS.Domain.Platform;
 using FinancasSaaS.Platform.Infrastructure.Configuration;
 using FinancasSaaS.Platform.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -19,5 +20,22 @@ public sealed class PlatformTenantProvisioningCatalog(
         return tenant is not null && options.Value.Connections.TryGetValue(tenant.DatabaseName, out var connection)
             ? new TenantProvisioningTarget(tenant.DatabaseName, connection)
             : null;
+    }
+
+    public async Task<IReadOnlyList<TenantFinanceMigrationTarget>> ListReadyAsync(CancellationToken cancellationToken = default)
+    {
+        var tenants = await dbContext.Tenants
+            .AsNoTracking()
+            .Where(item => item.ProvisioningStatus == ProvisioningStatus.Ready)
+            .OrderBy(item => item.Id)
+            .Select(item => new { item.Id, item.DatabaseName })
+            .ToListAsync(cancellationToken);
+
+        return tenants
+            .Select(item => new TenantFinanceMigrationTarget(
+                item.Id,
+                item.DatabaseName,
+                options.Value.Connections.GetValueOrDefault(item.DatabaseName)))
+            .ToArray();
     }
 }

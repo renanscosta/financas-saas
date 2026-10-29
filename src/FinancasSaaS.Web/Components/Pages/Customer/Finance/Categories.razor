@@ -1,0 +1,197 @@
+@page "/cliente/categorias"
+@using System.ComponentModel.DataAnnotations
+@using FinancasSaaS.Application.Abstractions
+@using FinancasSaaS.Application.Finance.Categories
+@using FinancasSaaS.Domain.Finance
+@using FinancasSaaS.Web.Components.Ui
+@using FinancasSaaS.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = PlatformPolicies.TenantAccess)]
+@layout CustomerLayout
+@inject CategoryService CategoryServiceInstance
+@inject ILogger<Categories> Logger
+
+<PageTitle>Categorias</PageTitle>
+
+<h1>Categorias</h1>
+<p>Organize entradas e despesas usando categorias do seu tenant.</p>
+
+<EditForm Model="Form" OnValidSubmit="SaveAsync" class="finance-form">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <label>
+        <span>Nome da categoria</span>
+        <InputText @bind-Value="Form.Name" maxlength="120" autocomplete="off" />
+    </label>
+    <div class="finance-actions">
+        <button class="finance-primary" type="submit" disabled="@IsBusy">
+            @(EditingId is null ? "Criar categoria" : "Salvar categoria")
+        </button>
+        @if (EditingId is not null)
+        {
+            <button type="button" @onclick="CancelEdit" disabled="@IsBusy">Cancelar edição</button>
+        }
+    </div>
+</EditForm>
+
+<CategoryMutationFeedback MutationState="@MutationFeedbackState"
+                          MutationMessage="@MutationMessage"
+                          IsRefreshing="@IsRefreshing"
+                          RefreshState="@RefreshFeedbackState"
+                          RefreshMessage="@RefreshMessage" />
+
+@if (Items.Count == 0)
+{
+    <p>Nenhuma categoria disponível. Crie uma categoria para organizar seus lançamentos.</p>
+}
+else
+{
+    <ul class="finance-list">
+        @foreach (var category in Items)
+        {
+            <li class="finance-item">
+                <h2>@category.Name</h2>
+                <div class="finance-actions">
+                    <button type="button" @onclick="() => BeginEdit(category)">Editar</button>
+                    <button type="button" @onclick="() => DeleteAsync(category.Id)" disabled="@IsBusy">Excluir</button>
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private readonly CategoryForm Form = new();
+    private List<Category> Items = [];
+    private Guid? EditingId;
+    private bool IsBusy;
+    private bool IsRefreshing;
+    private string? MutationMessage;
+    private string? RefreshMessage;
+    private OperationFeedbackState MutationFeedbackState;
+    private OperationFeedbackState RefreshFeedbackState;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        IsRefreshing = true;
+        try
+        {
+            Items = (await CategoryServiceInstance.ListAsync()).ToList();
+            RefreshMessage = null;
+            RefreshFeedbackState = OperationFeedbackState.Idle;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Category operation failed. Operation={Operation}", "list");
+            RefreshMessage = "Não foi possível atualizar a lista de categorias.";
+            RefreshFeedbackState = OperationFeedbackState.Error;
+        }
+        finally
+        {
+            IsRefreshing = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        IsBusy = true;
+        MutationMessage = null;
+        MutationFeedbackState = OperationFeedbackState.Loading;
+        try
+        {
+            if (EditingId is Guid id)
+            {
+                var renamed = await CategoryServiceInstance.RenameAsync(id, Form.Name);
+                if (renamed is null)
+                {
+                    MutationFeedbackState = OperationFeedbackState.Validation;
+                    MutationMessage = "A categoria não está disponível.";
+                    return;
+                }
+
+                MutationMessage = "Categoria atualizada.";
+            }
+            else
+            {
+                await CategoryServiceInstance.CreateAsync(Form.Name);
+                MutationMessage = "Categoria criada.";
+            }
+
+            MutationFeedbackState = OperationFeedbackState.Success;
+            CancelEdit();
+            await LoadAsync();
+        }
+        catch (ArgumentException exception)
+        {
+            MutationMessage = exception.Message;
+            MutationFeedbackState = OperationFeedbackState.Validation;
+        }
+        catch (CategoryNameConflictException exception)
+        {
+            MutationMessage = exception.Message;
+            MutationFeedbackState = OperationFeedbackState.Validation;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Category operation failed. Operation={Operation}", EditingId is null ? "create" : "rename");
+            MutationMessage = "Não foi possível salvar a categoria. Tente novamente.";
+            MutationFeedbackState = OperationFeedbackState.Error;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void BeginEdit(Category category)
+    {
+        EditingId = category.Id;
+        Form.Name = category.Name;
+        MutationMessage = null;
+        MutationFeedbackState = OperationFeedbackState.Idle;
+    }
+
+    private void CancelEdit()
+    {
+        EditingId = null;
+        Form.Name = string.Empty;
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        IsBusy = true;
+        MutationMessage = null;
+        MutationFeedbackState = OperationFeedbackState.Loading;
+        try
+        {
+            var result = await CategoryServiceInstance.DeleteAsync(id);
+            (MutationMessage, MutationFeedbackState) = result switch
+            {
+                CategoryDeleteResult.Deleted => ("Categoria excluída.", OperationFeedbackState.Success),
+                CategoryDeleteResult.InUse => ("A categoria está associada a lançamentos e não pode ser excluída.", OperationFeedbackState.Validation),
+                CategoryDeleteResult.LastCategory => ("O tenant precisa manter pelo menos uma categoria.", OperationFeedbackState.Validation),
+                _ => ("A categoria não está disponível.", OperationFeedbackState.Validation)
+            };
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Category operation failed. Operation={Operation}", "delete");
+            MutationMessage = "Não foi possível excluir a categoria. Tente novamente.";
+            MutationFeedbackState = OperationFeedbackState.Error;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private sealed class CategoryForm
+    {
+        [Required(ErrorMessage = "Informe o nome da categoria.")]
+        [StringLength(120, ErrorMessage = "O nome não pode exceder 120 caracteres.")]
+        public string Name { get; set; } = string.Empty;
+    }
+}

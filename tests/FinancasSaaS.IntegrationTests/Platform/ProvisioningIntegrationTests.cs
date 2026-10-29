@@ -7,6 +7,7 @@ using FinancasSaaS.Platform.Infrastructure.Services;
 using FinancasSaaS.Platform.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Xunit;
 
 namespace FinancasSaaS.IntegrationTests.Platform;
@@ -16,11 +17,12 @@ public sealed class ProvisioningIntegrationTests
     [Fact]
     public async Task ProvisionamentoCriaCategoriasEMarcaTenantPronto()
     {
-        var platformConnection = "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+        var platformConnection = Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING")
+            ?? throw new InvalidOperationException("Defina PLATFORM_CONNECTION_STRING para os testes PostgreSQL.");
         var tenantId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
         var databaseName = $"financas_tenant_{tenantId:N}";
-        var tenantConnection = $"Host=localhost;Port=5432;Database={databaseName};Username=financas;Password=local-only-change-me";
+        var tenantConnection = new NpgsqlConnectionStringBuilder(platformConnection) { Database = databaseName }.ConnectionString;
         var platformOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(platformConnection).Options;
 
         await using var platformDb = new PlatformDbContext(platformOptions);
