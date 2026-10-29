@@ -103,17 +103,9 @@ Medição executada em PostgreSQL 17 local (`docker compose`) com base sintétic
 
 Consultas medidas (SQL equivalente ao `ManualTransactionStore.ListAsync`):
 
-1. **Filtro de período sem restrições opcionais**  
-   Plano: `Parallel Bitmap Heap Scan` + `Hash Join` + `Gather Merge`  
-   Resultado: 50.142 linhas  
-   `Execution Time`: **110,197 ms**  
-   `Buffers`: **shared hit=1.446**
+1. **Filtro de período sem restrições opcionais** — Plano: `Parallel Bitmap Heap Scan` + `Hash Join` + `Gather Merge`; resultado: 50.142 linhas; `Execution Time`: **110,197 ms**; `Buffers`: **shared hit=1.446**.
 
-2. **Filtro combinado (período + tipo + categoria + estado)**  
-   Plano: `BitmapAnd` (`CategoryId` + índices de status/data) + `Nested Loop`  
-   Resultado: 5.206 linhas  
-   `Execution Time`: **19,468 ms**  
-   `Buffers`: **shared hit=1.299**
+2. **Filtro combinado (período + tipo + categoria + estado)** — Plano: `BitmapAnd` (`CategoryId` + índices de status/data) + `Nested Loop`; resultado: 5.206 linhas; `Execution Time`: **19,468 ms**; `Buffers`: **shared hit=1.299**.
 
 Decisão registrada: **não introduzir paginação nem novos índices nesta revisão**. Com a cardinalidade medida, os índices atuais sustentam o cenário sem regressão visível; manter monitoramento em produção e reavaliar ao surgir evidência de volume/latência superior ao perfil medido.
 
