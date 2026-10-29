@@ -1,0 +1,557 @@
+@page "/cliente/lancamentos"
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using FinancasSaaS.Application.Abstractions
+@using FinancasSaaS.Application.Finance.Categories
+@using FinancasSaaS.Application.Finance.ManualTransactions
+@using FinancasSaaS.Domain.Finance
+@using FinancasSaaS.Web.Components.Ui
+@using FinancasSaaS.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = PlatformPolicies.TenantAccess)]
+@layout CustomerLayout
+@inject ManualTransactionService TransactionService
+@inject CategoryService Categories
+@inject ILogger<Transactions> Logger
+
+<PageTitle>Lançamentos financeiros</PageTitle>
+
+<h1>Lançamentos financeiros</h1>
+<p>Registre e acompanhe entradas e despesas avulsas em reais (BRL).</p>
+
+<EditForm Model="Filter" OnValidSubmit="ApplyFiltersAsync" class="finance-form">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <label>
+        <span>Data inicial</span>
+        <InputDate @bind-Value="Filter.StartDate" />
+    </label>
+    <label>
+        <span>Data final</span>
+        <InputDate @bind-Value="Filter.EndDate" />
+    </label>
+    <label>
+        <span>Tipo</span>
+        <InputSelect @bind-Value="Filter.Type">
+            <option value="">Todos</option>
+            <option value="@nameof(ManualTransactionType.Income)">Entrada</option>
+            <option value="@nameof(ManualTransactionType.Expense)">Despesa</option>
+        </InputSelect>
+    </label>
+    <label>
+        <span>Categoria</span>
+        <InputSelect @bind-Value="Filter.CategoryId">
+            <option value="">Todas</option>
+            @foreach (var category in CategoryItems)
+            {
+                <option value="@category.Id">@category.Name</option>
+            }
+        </InputSelect>
+    </label>
+    <label>
+        <span>Estado</span>
+        <InputSelect @bind-Value="Filter.Status">
+            <option value="">Todos</option>
+            <option value="@nameof(ManualTransactionStatus.Planned)">Previsto</option>
+            <option value="@nameof(ManualTransactionStatus.Realized)">Realizado</option>
+            <option value="@nameof(ManualTransactionStatus.Cancelled)">Cancelado</option>
+        </InputSelect>
+    </label>
+    <button class="finance-primary" type="submit" disabled="@IsBusy">Aplicar filtros</button>
+</EditForm>
+
+<h2>Novo lançamento</h2>
+<EditForm Model="CreateForm" OnValidSubmit="CreateAsync" class="finance-form">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <label>
+        <span>Tipo</span>
+        <InputSelect @bind-Value="CreateForm.Type">
+            <option value="@nameof(ManualTransactionType.Income)">Entrada</option>
+            <option value="@nameof(ManualTransactionType.Expense)">Despesa</option>
+        </InputSelect>
+    </label>
+    <label>
+        <span>Descrição</span>
+        <InputText @bind-Value="CreateForm.Description" />
+    </label>
+    <label>
+        <span>Valor (BRL)</span>
+        <InputNumber @bind-Value="CreateForm.Amount" step="0.01" min="0.01" max="@ManualTransaction.MaximumAmountText" />
+    </label>
+    <label>
+        <span>Categoria</span>
+        <InputSelect @bind-Value="CreateForm.CategoryId">
+            <option value="">Selecione</option>
+            @foreach (var category in CategoryItems)
+            {
+                <option value="@category.Id">@category.Name</option>
+            }
+        </InputSelect>
+    </label>
+    <label>
+        <span>Data de competência</span>
+        <InputDate @bind-Value="CreateForm.CompetenceDate" />
+    </label>
+    <label>
+        <span>Data prevista de pagamento/recebimento</span>
+        <InputDate @bind-Value="CreateForm.ExpectedDate" />
+    </label>
+    <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar como previsto</button>
+</EditForm>
+
+<TransactionMutationFeedback MutationState="@MutationFeedbackState"
+                             MutationMessage="@MutationMessage"
+                             RefreshState="@(IsBusy ? OperationFeedbackState.Loading : FeedbackState)"
+                             RefreshMessage="@Message" />
+
+@if (Items.Count == 0)
+{
+    <p>Nenhum lançamento encontrado para os filtros informados.</p>
+}
+else
+{
+    <ul class="finance-list">
+        @foreach (var item in Items)
+        {
+            <li class="finance-item">
+                <h2>@(item.Transaction.Type == ManualTransactionType.Income ? "Entrada" : "Despesa"): @item.Transaction.Description</h2>
+                <p>@item.Transaction.Amount.ToString("C2", CultureInfo.GetCultureInfo("pt-BR")) · @item.CategoryName</p>
+                <p>Competência: @item.Transaction.CompetenceDate.ToString("dd/MM/yyyy") · Período: @item.Transaction.FilterDate.ToString("dd/MM/yyyy")</p>
+                <p>Estado: @StatusText(item.Transaction.Status)</p>
+                @if (item.Transaction.EffectiveDate is DateOnly effectiveDate)
+                {
+                    <p>Data efetiva: @effectiveDate.ToString("dd/MM/yyyy")</p>
+                }
+                <div class="finance-actions">
+                    @if (item.Transaction.Status != ManualTransactionStatus.Cancelled)
+                    {
+                        @if (item.Transaction.Status == ManualTransactionStatus.Planned)
+                        {
+                            <button type="button" @onclick="() => StartRealizing(item)">Realizar</button>
+                        }
+                        <button type="button" @onclick="() => StartCorrection(item)">Corrigir</button>
+                        <button type="button" @onclick="() => StartCancellation(item)">Cancelar</button>
+                    }
+                    <button type="button"
+                            aria-expanded="@(HistoryId == item.Transaction.Id)"
+                            aria-controls="@($"transaction-history-{item.Transaction.Id}")"
+                            @onclick="() => ToggleHistoryAsync(item.Transaction.Id)">
+                        Histórico
+                    </button>
+                </div>
+                @if (Realizing?.Transaction.Id == item.Transaction.Id)
+                {
+                    <EditForm Model="RealizeForm" OnValidSubmit="RealizeAsync" class="finance-form">
+                        <label>
+                            <span>Data efetiva</span>
+                            <InputDate @bind-Value="RealizeForm.EffectiveDate" />
+                        </label>
+                        <button class="finance-primary" type="submit" disabled="@IsBusy">Confirmar realização</button>
+                    </EditForm>
+                }
+                @if (Editing?.Transaction.Id == item.Transaction.Id)
+                {
+                    <EditForm Model="CorrectionForm" OnValidSubmit="CorrectAsync" class="finance-form">
+                        <DataAnnotationsValidator />
+                        <label>
+                            <span>Tipo</span>
+                            <InputSelect @bind-Value="CorrectionForm.Type">
+                                <option value="">Manter tipo</option>
+                                <option value="@nameof(ManualTransactionType.Income)">Entrada</option>
+                                <option value="@nameof(ManualTransactionType.Expense)">Despesa</option>
+                            </InputSelect>
+                        </label>
+                        <label>
+                            <span>Descrição (vazio mantém)</span>
+                            <InputText @bind-Value="CorrectionForm.Description" />
+                        </label>
+                        <label>
+                            <span>Valor BRL (vazio mantém)</span>
+                            <InputNumber @bind-Value="CorrectionForm.Amount" step="0.01" min="0.01" max="@ManualTransaction.MaximumAmountText" />
+                        </label>
+                        <label>
+                            <span>Categoria (vazio mantém)</span>
+                            <InputSelect @bind-Value="CorrectionForm.CategoryId">
+                                <option value="">Manter categoria</option>
+                                @foreach (var category in CategoryItems)
+                                {
+                                    <option value="@category.Id">@category.Name</option>
+                                }
+                            </InputSelect>
+                        </label>
+                        <label>
+                            <span>Data de competência (vazia mantém)</span>
+                            <InputDate @bind-Value="CorrectionForm.CompetenceDate" />
+                        </label>
+                        <label>
+                            <span>Data prevista (vazia mantém)</span>
+                            <InputDate @bind-Value="CorrectionForm.ExpectedDate" />
+                        </label>
+                        <label>
+                            <span>Motivo da correção</span>
+                            <InputText @bind-Value="CorrectionForm.Reason" />
+                        </label>
+                        <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar correção</button>
+                    </EditForm>
+                }
+                @if (Cancelling?.Transaction.Id == item.Transaction.Id)
+                {
+                    <EditForm Model="CancelForm" OnValidSubmit="CancelAsync" class="finance-form">
+                        <label>
+                            <span>Motivo do cancelamento</span>
+                            <InputText @bind-Value="CancelForm.Reason" />
+                        </label>
+                        <button class="finance-primary" type="submit" disabled="@IsBusy">Confirmar cancelamento</button>
+                    </EditForm>
+                }
+                <section id="@($"transaction-history-{item.Transaction.Id}")"
+                         aria-labelledby="@($"transaction-history-heading-{item.Transaction.Id}")"
+                         hidden="@(HistoryId != item.Transaction.Id)">
+                    <h3 id="@($"transaction-history-heading-{item.Transaction.Id}")">Histórico de alterações</h3>
+                    @if (HistoryId == item.Transaction.Id)
+                    {
+                        <TransactionHistoryPanel IsLoading="@IsHistoryLoading"
+                                                ErrorMessage="@HistoryError"
+                                                Events="@History" />
+                    }
+                </section>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private readonly FilterForm Filter = new();
+    private readonly CreateFormModel CreateForm = new();
+    private readonly RealizeFormModel RealizeForm = new();
+    private readonly CorrectionFormModel CorrectionForm = new();
+    private readonly CancelFormModel CancelForm = new();
+    private List<Category> CategoryItems = [];
+    private List<ManualTransactionRecord> Items = [];
+    private ManualTransactionRecord? Editing;
+    private ManualTransactionRecord? Realizing;
+    private ManualTransactionRecord? Cancelling;
+    private Guid? HistoryId;
+    private IReadOnlyList<ManualTransactionAuditEvent> History = [];
+    private bool IsHistoryLoading;
+    private string? HistoryError;
+    private bool IsBusy;
+    private string? Message;
+    private OperationFeedbackState FeedbackState;
+    private string? MutationMessage;
+    private OperationFeedbackState MutationFeedbackState;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        Filter.StartDate = new DateOnly(today.Year, today.Month, 1);
+        Filter.EndDate = new DateOnly(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+        try
+        {
+            CategoryItems = (await Categories.ListAsync()).ToList();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance list operation failed. Operation={Operation}", "category.list");
+            Message = "Não foi possível consultar as categorias financeiras.";
+            FeedbackState = OperationFeedbackState.Error;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task ApplyFiltersAsync() => await LoadAsync();
+
+    private async Task LoadAsync(bool showSuccessMessage = true)
+    {
+        if (Filter.StartDate is not DateOnly start || Filter.EndDate is not DateOnly end)
+        {
+            Message = "Informe as datas inicial e final do período.";
+            FeedbackState = OperationFeedbackState.Validation;
+            return;
+        }
+
+        if (start > end)
+        {
+            Message = "A data inicial deve ser anterior ou igual à data final.";
+            FeedbackState = OperationFeedbackState.Validation;
+            return;
+        }
+
+        try
+        {
+            ManualTransactionType? type = Enum.TryParse<ManualTransactionType>(Filter.Type, out var parsedType) ? parsedType : null;
+            ManualTransactionStatus? status = Enum.TryParse<ManualTransactionStatus>(Filter.Status, out var parsedStatus) ? parsedStatus : null;
+            Guid? categoryId = Guid.TryParse(Filter.CategoryId, out var parsedCategory) ? parsedCategory : null;
+            Items = (await TransactionService.ListAsync(new ManualTransactionFilter(start, end, type, categoryId, status))).ToList();
+            Message = showSuccessMessage ? "Lançamentos atualizados." : null;
+            FeedbackState = showSuccessMessage ? OperationFeedbackState.Success : OperationFeedbackState.Idle;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance list operation failed. Operation={Operation}", "transaction.list");
+            Message = "Não foi possível consultar os lançamentos.";
+            FeedbackState = OperationFeedbackState.Error;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (CreateForm.CategoryId == Guid.Empty || CreateForm.CompetenceDate is null || CreateForm.ExpectedDate is null)
+        {
+            Message = "Informe categoria, competência e data prevista.";
+            FeedbackState = OperationFeedbackState.Validation;
+            return;
+        }
+
+        await RunMutationAsync(async () =>
+        {
+            await TransactionService.CreateAsync(
+                Enum.Parse<ManualTransactionType>(CreateForm.Type),
+                CreateForm.Description,
+                CreateForm.Amount,
+                CreateForm.CategoryId,
+                CreateForm.CompetenceDate.Value,
+                CreateForm.ExpectedDate.Value);
+            CreateForm.Reset();
+        }, "Lançamento registrado como previsto.");
+    }
+
+    private void StartRealizing(ManualTransactionRecord record)
+    {
+        Realizing = record;
+        RealizeForm.EffectiveDate = DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    private async Task RealizeAsync()
+    {
+        if (Realizing is null || RealizeForm.EffectiveDate is null)
+        {
+            return;
+        }
+
+        var current = Realizing;
+        await RunMutationAsync(async () =>
+        {
+            var result = await TransactionService.RealizeAsync(current.Transaction.Id, RealizeForm.EffectiveDate.Value, current.Version);
+            if (result is null)
+            {
+                throw new InvalidOperationException("Há uma versão mais recente. Atualize a lista antes de tentar novamente.");
+            }
+
+            Realizing = null;
+        }, "Lançamento realizado.");
+    }
+
+    private void StartCorrection(ManualTransactionRecord record)
+    {
+        Editing = record;
+        CorrectionForm.Reset();
+    }
+
+    private async Task CorrectAsync()
+    {
+        if (Editing is null)
+        {
+            return;
+        }
+
+        var current = Editing;
+        Guid? categoryId = Guid.TryParse(CorrectionForm.CategoryId, out var parsedCategory) ? parsedCategory : null;
+        var correction = new ManualTransactionCorrection(
+            Enum.TryParse<ManualTransactionType>(CorrectionForm.Type, out var type) ? type : null,
+            string.IsNullOrWhiteSpace(CorrectionForm.Description) ? null : CorrectionForm.Description,
+            CorrectionForm.Amount,
+            categoryId,
+            CorrectionForm.CompetenceDate,
+            CorrectionForm.ExpectedDate,
+            CorrectionForm.Reason);
+        await RunMutationAsync(async () =>
+        {
+            var result = await TransactionService.CorrectAsync(current.Transaction.Id, correction, current.Version);
+            if (result is null)
+            {
+                throw new InvalidOperationException("Há uma versão mais recente. Atualize a lista antes de tentar novamente.");
+            }
+
+            Editing = null;
+        }, "Lançamento corrigido e auditado.");
+    }
+
+    private void StartCancellation(ManualTransactionRecord record)
+    {
+        Cancelling = record;
+        CancelForm.Reason = string.Empty;
+    }
+
+    private async Task CancelAsync()
+    {
+        if (Cancelling is null)
+        {
+            return;
+        }
+
+        var current = Cancelling;
+        await RunMutationAsync(async () =>
+        {
+            var result = await TransactionService.CancelAsync(current.Transaction.Id, CancelForm.Reason, current.Version);
+            if (result is null)
+            {
+                throw new InvalidOperationException("Há uma versão mais recente. Atualize a lista antes de tentar novamente.");
+            }
+
+            Cancelling = null;
+        }, "Lançamento cancelado. Ele permanece no histórico.");
+    }
+
+    private async Task ToggleHistoryAsync(Guid transactionId)
+    {
+        if (HistoryId == transactionId)
+        {
+            HistoryId = null;
+            History = [];
+            HistoryError = null;
+            IsHistoryLoading = false;
+            return;
+        }
+
+        HistoryId = transactionId;
+        History = [];
+        HistoryError = null;
+        IsHistoryLoading = true;
+        try
+        {
+            History = await TransactionService.GetHistoryAsync(transactionId);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance list operation failed. Operation={Operation}", "transaction.history");
+            HistoryError = "Não foi possível consultar o histórico do lançamento.";
+        }
+        finally
+        {
+            IsHistoryLoading = false;
+        }
+    }
+
+    private async Task RunMutationAsync(Func<Task> action, string successMessage)
+    {
+        IsBusy = true;
+        MutationMessage = null;
+        MutationFeedbackState = OperationFeedbackState.Idle;
+        Message = null;
+        FeedbackState = OperationFeedbackState.Idle;
+        try
+        {
+            await action();
+            MutationFeedbackState = OperationFeedbackState.Success;
+            MutationMessage = successMessage;
+            await LoadAsync(showSuccessMessage: false);
+        }
+        catch (ArgumentException exception)
+        {
+            MutationFeedbackState = OperationFeedbackState.Validation;
+            MutationMessage = exception.Message;
+        }
+        catch (InvalidOperationException exception)
+        {
+            MutationFeedbackState = OperationFeedbackState.Validation;
+            MutationMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance mutation failed.");
+            MutationFeedbackState = OperationFeedbackState.Error;
+            MutationMessage = "Não foi possível concluir a operação financeira.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static string StatusText(ManualTransactionStatus status) => status switch
+    {
+        ManualTransactionStatus.Planned => "Previsto",
+        ManualTransactionStatus.Realized => "Realizado",
+        ManualTransactionStatus.Cancelled => "Cancelado",
+        _ => "Indisponível"
+    };
+
+    private sealed class FilterForm
+    {
+        [Required(ErrorMessage = "Informe a data inicial.")]
+        public DateOnly? StartDate { get; set; }
+
+        [Required(ErrorMessage = "Informe a data final.")]
+        public DateOnly? EndDate { get; set; }
+
+        public string? Type { get; set; }
+        public string? CategoryId { get; set; }
+        public string? Status { get; set; }
+    }
+
+    private sealed class CreateFormModel
+    {
+        [Required]
+        public string Type { get; set; } = nameof(ManualTransactionType.Expense);
+
+        [Required(ErrorMessage = "Informe a descrição.")]
+        public string Description { get; set; } = string.Empty;
+
+        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ErrorMessage = "Informe um valor positivo dentro do limite permitido.")]
+        public decimal Amount { get; set; }
+
+        public Guid CategoryId { get; set; }
+        public DateOnly? CompetenceDate { get; set; }
+        public DateOnly? ExpectedDate { get; set; }
+
+        public void Reset()
+        {
+            Description = string.Empty;
+            Amount = 0;
+            CompetenceDate = null;
+            ExpectedDate = null;
+        }
+    }
+
+    private sealed class RealizeFormModel
+    {
+        [Required(ErrorMessage = "Informe a data efetiva.")]
+        public DateOnly? EffectiveDate { get; set; }
+    }
+
+    private sealed class CorrectionFormModel
+    {
+        public string? Type { get; set; }
+        public string? Description { get; set; }
+
+        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ErrorMessage = "Informe um valor positivo dentro do limite permitido.")]
+        public decimal? Amount { get; set; }
+        public string? CategoryId { get; set; }
+        public DateOnly? CompetenceDate { get; set; }
+        public DateOnly? ExpectedDate { get; set; }
+
+        [Required(ErrorMessage = "Informe o motivo da correção.")]
+        public string Reason { get; set; } = string.Empty;
+
+        public void Reset()
+        {
+            Type = null;
+            Description = null;
+            Amount = null;
+            CategoryId = null;
+            CompetenceDate = null;
+            ExpectedDate = null;
+            Reason = string.Empty;
+        }
+    }
+
+    private sealed class CancelFormModel
+    {
+        [Required(ErrorMessage = "Informe o motivo do cancelamento.")]
+        public string Reason { get; set; } = string.Empty;
+    }
+}

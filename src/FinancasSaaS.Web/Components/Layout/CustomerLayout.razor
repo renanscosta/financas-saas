@@ -1,0 +1,21 @@
+﻿@inherits LayoutComponentBase
+
+<MudBlazorProviders />
+
+<div class="customer-shell">
+    <a class="customer-skip-link" href="#main-content">Pular para o conteúdo</a>
+    <header class="customer-header">
+        <a class="customer-brand" href="/cliente/lancamentos">Finanças <strong>SaaS</strong></a>
+        <nav aria-label="Navegação financeira">
+            <NavLink href="/cliente/lancamentos" Match="NavLinkMatch.All">Lançamentos</NavLink>
+            <NavLink href="/cliente/categorias">Categorias</NavLink>
+            <form action="/Account/Logout" method="post" data-enhance="false">
+                <AntiforgeryToken />
+                <button type="submit">Sair da conta</button>
+            </form>
+        </nav>
+    </header>
+    <main class="customer-main" id="main-content">
+        @Body
+    </main>
+</div>

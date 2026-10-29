@@ -1,0 +1,188 @@
+.customer-shell {
+    min-height: 100vh;
+    background: var(--app-page-bg);
+}
+
+.customer-skip-link {
+    position: absolute;
+    z-index: 1;
+    top: 0.5rem;
+    left: 0.5rem;
+    transform: translateY(-200%);
+    padding: 0.65rem 0.8rem;
+    border-radius: 0.5rem;
+    background: var(--app-surface);
+    color: var(--app-text);
+}
+
+.customer-skip-link:focus {
+    transform: translateY(0);
+}
+
+.customer-shell :focus-visible {
+    outline: 3px solid var(--app-primary);
+    outline-offset: 3px;
+}
+
+.customer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem clamp(1rem, 4vw, 3rem);
+    border-bottom: 1px solid var(--app-border);
+    background: var(--app-surface);
+}
+
+.customer-brand {
+    color: var(--app-text);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.customer-header nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.customer-header nav ::deep a,
+.customer-header button {
+    min-height: 2.75rem;
+    padding: 0.65rem 0.8rem;
+    border: 0;
+    border-radius: 0.625rem;
+    background: transparent;
+    color: var(--app-text-muted);
+    text-decoration: none;
+}
+
+.customer-header nav ::deep a.active {
+    background: #ccfbf1;
+    color: #134e4a;
+}
+
+.customer-header button {
+    border: 1px solid var(--app-border);
+    cursor: pointer;
+}
+
+.customer-header form {
+    margin: 0;
+}
+
+.customer-main {
+    width: min(100%, 78rem);
+    margin-inline: auto;
+    padding: clamp(1rem, 3vw, 2.5rem);
+}
+
+.customer-main ::deep .finance-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: 1rem;
+    margin-block: 1rem 2rem;
+    padding: 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: var(--app-surface);
+}
+
+.customer-main ::deep .finance-form label {
+    display: grid;
+    gap: 0.35rem;
+    font-weight: 600;
+}
+
+.customer-main ::deep .finance-form input,
+.customer-main ::deep .finance-form select,
+.customer-main ::deep .finance-form textarea {
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.5rem;
+    background: white;
+    color: var(--app-text);
+}
+
+.customer-main ::deep .finance-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.customer-main ::deep .finance-actions button,
+.customer-main ::deep .finance-primary {
+    min-height: 2.75rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.5rem;
+    background: var(--app-surface);
+    color: var(--app-text);
+    cursor: pointer;
+}
+
+.customer-main ::deep .finance-primary {
+    border-color: var(--app-primary);
+    background: var(--app-primary);
+    color: white;
+}
+
+.customer-main ::deep .finance-list {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0;
+    list-style: none;
+}
+
+.customer-main ::deep .finance-item {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: var(--app-surface);
+}
+
+.customer-main ::deep .finance-item h2,
+.customer-main ::deep .finance-item p {
+    margin: 0;
+}
+
+.customer-main ::deep .finance-error {
+    color: #991b1b;
+}
+
+.customer-main ::deep .finance-item,
+.customer-main ::deep .finance-form,
+.customer-main ::deep .finance-actions {
+    min-width: 0;
+}
+
+.customer-main ::deep .finance-item h2,
+.customer-main ::deep .finance-item p,
+.customer-main ::deep .finance-item article {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+    .customer-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .customer-header nav {
+        width: 100%;
+    }
+
+    .customer-main {
+        padding: 1rem;
+    }
+
+    .customer-main ::deep .finance-actions > button {
+        flex: 1 1 8rem;
+    }
+}

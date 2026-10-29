@@ -1,0 +1,16 @@
+<OperationFeedback State="@MutationState" Message="@MutationMessage" />
+<OperationFeedback State="@RefreshState" Message="@RefreshMessage" />
+
+@code {
+    [Parameter]
+    public OperationFeedbackState MutationState { get; set; }
+
+    [Parameter]
+    public string? MutationMessage { get; set; }
+
+    [Parameter]
+    public OperationFeedbackState RefreshState { get; set; }
+
+    [Parameter]
+    public string? RefreshMessage { get; set; }
+}

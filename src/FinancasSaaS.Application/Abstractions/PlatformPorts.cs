@@ -16,10 +16,12 @@ public interface ITenantProvisioner
 }
 
 public sealed record TenantProvisioningTarget(string DatabaseName, string ConnectionString);
+public sealed record TenantFinanceMigrationTarget(Guid TenantId, string DatabaseName, string? ConnectionString);
 
 public interface ITenantProvisioningCatalog
 {
     Task<TenantProvisioningTarget?> GetAsync(Guid tenantId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TenantFinanceMigrationTarget>> ListReadyAsync(CancellationToken cancellationToken = default);
 }
 
 public interface ITenantProvisioningStateStore

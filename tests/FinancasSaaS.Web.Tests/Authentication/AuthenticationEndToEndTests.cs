@@ -14,7 +14,9 @@ namespace FinancasSaaS.Web.Tests.Authentication;
 
 public sealed class AuthenticationEndToEndTests : IAsyncLifetime
 {
-    private readonly string connection = "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+    private readonly string connection =
+        Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING")
+        ?? throw new InvalidOperationException("Defina PLATFORM_CONNECTION_STRING para os testes de autenticação Web.");
     private WebApplicationFactory<Program> factory = null!;
     private string administratorEmail = string.Empty;
     private string readonlyEmail = string.Empty;
