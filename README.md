@@ -22,7 +22,10 @@ Solução .NET 10 para um SaaS de finanças pessoais, organizada como monólito 
 
 ```bash
 cp .env.example .env
+set -a; . ./.env; set +a
 docker compose -f docker/compose.yaml up -d postgres mailpit
+export PLATFORM_CONNECTION_STRING="Host=${POSTGRES_HOST};Port=${POSTGRES_PORT};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+export TENANT_ADMIN_CONNECTION_STRING="$PLATFORM_CONNECTION_STRING"
 dotnet restore
 dotnet build
 dotnet test
