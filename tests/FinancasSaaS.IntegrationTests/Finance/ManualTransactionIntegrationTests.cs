@@ -17,8 +17,8 @@ using EntityCategory = FinancasSaaS.Finance.Infrastructure.Persistence.Entities.
 
 namespace FinancasSaaS.IntegrationTests.Finance;
 
+[Collection("Tenant database integration")]
 public sealed class ManualTransactionIntegrationTests(TenantDatabaseFixture fixture)
-    : IClassFixture<TenantDatabaseFixture>
 {
     [Fact]
     public async Task LancamentosEHistoricoFicamIsoladosPorTenantERecusamVersaoObsoleta()

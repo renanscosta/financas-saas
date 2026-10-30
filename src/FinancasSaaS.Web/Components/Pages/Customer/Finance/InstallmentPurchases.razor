@@ -1,0 +1,526 @@
+@page "/cliente/compras-parceladas"
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using FinancasSaaS.Application.Abstractions
+@using FinancasSaaS.Application.Finance.Categories
+@using FinancasSaaS.Application.Finance.InstallmentPurchases
+@using FinancasSaaS.Domain.Finance
+@using FinancasSaaS.Web.Components.Ui
+@using FinancasSaaS.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = PlatformPolicies.TenantAccess)]
+@layout CustomerLayout
+@inject InstallmentPurchaseService PurchaseService
+@inject CategoryService Categories
+@inject ILogger<InstallmentPurchases> Logger
+
+<PageTitle>Compras parceladas</PageTitle>
+
+<h1>Compras parceladas</h1>
+<p>Registre compras em parcelas mensais e acompanhe os pagamentos previstos e realizados.</p>
+
+<h2>Nova compra parcelada</h2>
+<EditForm Model="CreateForm" OnValidSubmit="CreateAsync" class="finance-form">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <label>
+        <span>Descrição</span>
+        <InputText @bind-Value="CreateForm.Description" />
+    </label>
+    <label>
+        <span>Categoria</span>
+        <InputSelect @bind-Value="CreateForm.CategoryId">
+            <option value="">Selecione</option>
+            @foreach (var category in CategoryItems)
+            {
+                <option value="@category.Id">@category.Name</option>
+            }
+        </InputSelect>
+    </label>
+    <label>
+        <span>Valor total (BRL)</span>
+        <InputNumber @bind-Value="CreateForm.TotalAmount" step="0.01" min="0.01" max="@ManualTransaction.MaximumAmountText" />
+    </label>
+    <label>
+        <span>Quantidade de parcelas (2 a 1.200)</span>
+        <InputNumber @bind-Value="CreateForm.InstallmentCount" min="2" max="1200" />
+    </label>
+    <label>
+        <span>Primeiro vencimento</span>
+        <InputDate @bind-Value="CreateForm.FirstDueDate" />
+    </label>
+    <button class="finance-primary" type="submit" disabled="@IsBusy">Criar parcelas previstas</button>
+</EditForm>
+
+<TransactionMutationFeedback MutationState="@MutationFeedbackState"
+                             MutationMessage="@MutationMessage"
+                             RefreshState="@(IsBusy ? OperationFeedbackState.Loading : FeedbackState)"
+                             RefreshMessage="@Message" />
+
+<h2>Parcelamentos registrados</h2>
+@if (Items.Count == 0)
+{
+    <p>Nenhuma compra parcelada foi registrada.</p>
+}
+else
+{
+    <ul class="finance-list">
+        @foreach (var item in Items)
+        {
+            <li class="finance-item">
+                <h3>@item.Purchase.Description</h3>
+                <p>
+                    Total: @item.Purchase.TotalAmount.ToString("C2", BrazilianCulture) ·
+                    @item.Purchase.InstallmentCount parcelas · @item.CategoryName
+                </p>
+                <div class="finance-actions">
+                    <button type="button"
+                            aria-expanded="@(HistoryId == item.Purchase.Id)"
+                            aria-controls="@($"installment-history-{item.Purchase.Id}")"
+                            @onclick="() => ToggleHistoryAsync(item.Purchase.Id)">
+                        @(HistoryId == item.Purchase.Id ? "Ocultar histórico" : "Histórico")
+                    </button>
+                    <button type="button"
+                            disabled="@IsBusy"
+                            @onclick="() => StartEditing(item)">
+                        Editar parcelas futuras
+                    </button>
+                    <button type="button"
+                            disabled="@IsBusy"
+                            @onclick="() => StartCancellation(item)">
+                        Cancelar parcelas futuras
+                    </button>
+                </div>
+
+                @if (Editing?.Purchase.Id == item.Purchase.Id)
+                {
+                    <EditForm Model="EditForm" OnValidSubmit="EditAsync" class="finance-form">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+                        <label>
+                            <span>Descrição das parcelas futuras</span>
+                            <InputText @bind-Value="EditForm.Description" />
+                        </label>
+                        <label>
+                            <span>Categoria das parcelas futuras</span>
+                            <InputSelect @bind-Value="EditForm.CategoryId">
+                                @foreach (var category in CategoryItems)
+                                {
+                                    <option value="@category.Id">@category.Name</option>
+                                }
+                            </InputSelect>
+                        </label>
+                        <label>
+                            <span>Novo total (BRL)</span>
+                            <InputNumber @bind-Value="EditForm.TotalAmount" step="0.01" min="0.01" max="@ManualTransaction.MaximumAmountText" />
+                        </label>
+                        <label>
+                            <span>Novo vencimento da primeira parcela elegível (opcional)</span>
+                            <InputDate @bind-Value="EditForm.FirstEligibleDueDate" />
+                        </label>
+                        <label>
+                            <span>Motivo da edição</span>
+                            <InputTextArea @bind-Value="EditForm.Reason" />
+                        </label>
+                        <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar edição</button>
+                        <button type="button" disabled="@IsBusy" @onclick="() => Editing = null">Fechar</button>
+                    </EditForm>
+                }
+
+                @if (Cancelling?.Purchase.Id == item.Purchase.Id)
+                {
+                    <EditForm Model="CancelForm" OnValidSubmit="CancelAsync" class="finance-form">
+                        <DataAnnotationsValidator />
+                        <label>
+                            <span>Motivo do cancelamento</span>
+                            <InputTextArea @bind-Value="CancelForm.Reason" />
+                        </label>
+                        <p>Somente parcelas futuras previstas serão canceladas. Pagamentos e parcelas protegidas serão preservados.</p>
+                        <button class="finance-primary" type="submit" disabled="@IsBusy">Confirmar cancelamento</button>
+                        <button type="button" disabled="@IsBusy" @onclick="() => Cancelling = null">Fechar</button>
+                    </EditForm>
+                }
+
+                <details>
+                    <summary>Exibir parcelas (@item.Installments.Count)</summary>
+                    <ol class="finance-list">
+                        @foreach (var installmentRecord in item.Installments)
+                        {
+                            var installment = installmentRecord.Installment;
+                            <li class="finance-item">
+                                <h4>Parcela @installment.Number de @item.Purchase.InstallmentCount</h4>
+                                <p>@installment.Description · @installment.Amount.ToString("C2", BrazilianCulture) · @installmentRecord.CategoryName</p>
+                                <p>
+                                    Vencimento: @installment.DueDate.ToString("dd/MM/yyyy") ·
+                                    Competência: @installment.CompetenceDate.ToString("MM/yyyy") ·
+                                    Estado: @StatusText(installment.Status)
+                                </p>
+                                @if (installment.EffectiveDate is { } effectiveDate)
+                                {
+                                    <p>Data efetiva de pagamento: @effectiveDate.ToString("dd/MM/yyyy")</p>
+                                }
+                                @if (installment.Status == ManualTransactionStatus.Planned)
+                                {
+                                    <button type="button"
+                                            disabled="@IsBusy"
+                                            @onclick="() => StartRealizing(item, installment.Number)">
+                                        Confirmar realização
+                                    </button>
+                                }
+                                @if (RealizingPurchaseId == item.Purchase.Id && RealizingNumber == installment.Number)
+                                {
+                                    <EditForm Model="RealizeForm" OnValidSubmit="RealizeAsync" class="finance-form">
+                                        <DataAnnotationsValidator />
+                                        <label>
+                                            <span>Data efetiva do pagamento</span>
+                                            <InputDate @bind-Value="RealizeForm.EffectiveDate" />
+                                        </label>
+                                        <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar realização</button>
+                                        <button type="button" disabled="@IsBusy" @onclick="CloseRealization">Fechar</button>
+                                    </EditForm>
+                                }
+                            </li>
+                        }
+                    </ol>
+                </details>
+
+                @if (HistoryId == item.Purchase.Id)
+                {
+                    <div id="@($"installment-history-{item.Purchase.Id}")">
+                        <InstallmentPurchaseHistoryPanel IsLoading="@IsHistoryLoading"
+                                                         ErrorMessage="@HistoryError"
+                                                         Events="@History" />
+                    </div>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private static readonly CultureInfo BrazilianCulture = CultureInfo.GetCultureInfo("pt-BR");
+    private readonly CreateFormModel CreateForm = new();
+    private readonly EditFormModel EditForm = new();
+    private readonly RealizeFormModel RealizeForm = new();
+    private readonly CancelFormModel CancelForm = new();
+    private List<Category> CategoryItems = [];
+    private List<InstallmentPurchaseRecord> Items = [];
+    private InstallmentPurchaseRecord? Editing;
+    private InstallmentPurchaseRecord? Cancelling;
+    private Guid? RealizingPurchaseId;
+    private int? RealizingNumber;
+    private Guid? HistoryId;
+    private IReadOnlyList<InstallmentPurchaseAuditEvent> History = [];
+    private long historyRequestVersion;
+    private bool IsHistoryLoading;
+    private string? HistoryError;
+    private bool IsBusy;
+    private string? Message;
+    private OperationFeedbackState FeedbackState;
+    private string? MutationMessage;
+    private OperationFeedbackState MutationFeedbackState;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            CategoryItems = (await Categories.ListAsync()).ToList();
+            if (CategoryItems.Count > 0)
+            {
+                CreateForm.CategoryId = CategoryItems[0].Id;
+            }
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance list operation failed. Operation={Operation}", "installment_purchase.initialize");
+            Message = "Não foi possível carregar as compras parceladas.";
+            FeedbackState = OperationFeedbackState.Error;
+        }
+    }
+
+    private async Task LoadAsync(bool showSuccessMessage = false)
+    {
+        try
+        {
+            Items = (await PurchaseService.ListAsync()).ToList();
+            Message = showSuccessMessage ? "Compras parceladas atualizadas." : null;
+            FeedbackState = showSuccessMessage ? OperationFeedbackState.Success : OperationFeedbackState.Idle;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance list operation failed. Operation={Operation}", "installment_purchase.list");
+            Message = "Não foi possível consultar as compras parceladas.";
+            FeedbackState = OperationFeedbackState.Error;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (CreateForm.CategoryId == Guid.Empty || CreateForm.FirstDueDate is null)
+        {
+            MutationFeedbackState = OperationFeedbackState.Validation;
+            MutationMessage = "Informe uma categoria e o primeiro vencimento.";
+            return;
+        }
+
+        await RunMutationAsync(async () =>
+        {
+            await PurchaseService.CreateAsync(
+                CreateForm.Description,
+                CreateForm.CategoryId,
+                CreateForm.TotalAmount,
+                CreateForm.InstallmentCount,
+                CreateForm.FirstDueDate.Value);
+            CreateForm.Reset(CategoryItems.FirstOrDefault()?.Id ?? Guid.Empty);
+        }, "Compra parcelada criada com todas as parcelas previstas.");
+    }
+
+    private void StartRealizing(InstallmentPurchaseRecord purchase, int installmentNumber)
+    {
+        RealizingPurchaseId = purchase.Purchase.Id;
+        RealizingNumber = installmentNumber;
+        RealizeForm.EffectiveDate = DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    private void CloseRealization()
+    {
+        RealizingPurchaseId = null;
+        RealizingNumber = null;
+    }
+
+    private async Task RealizeAsync()
+    {
+        if (RealizingPurchaseId is not Guid purchaseId ||
+            RealizingNumber is not int number ||
+            RealizeForm.EffectiveDate is not DateOnly effectiveDate)
+        {
+            return;
+        }
+
+        var current = Items.SingleOrDefault(item => item.Purchase.Id == purchaseId);
+        if (current is null)
+        {
+            MutationFeedbackState = OperationFeedbackState.Error;
+            MutationMessage = "A compra não está mais disponível. Atualize a tela.";
+            return;
+        }
+
+        await RunMutationAsync(async () =>
+        {
+            var result = await PurchaseService.RealizeAsync(purchaseId, number, effectiveDate, current.Purchase.Version);
+            if (result is null)
+            {
+                throw new InvalidOperationException("Há uma versão mais recente. Atualize a tela antes de tentar novamente.");
+            }
+
+            CloseRealization();
+        }, "Parcela marcada como realizada e auditada.");
+    }
+
+    private void StartEditing(InstallmentPurchaseRecord item)
+    {
+        Editing = item;
+        EditForm.Description = item.Purchase.Description;
+        EditForm.CategoryId = item.Purchase.CategoryId;
+        EditForm.TotalAmount = item.Purchase.TotalAmount;
+        EditForm.FirstEligibleDueDate = null;
+        EditForm.Reason = string.Empty;
+    }
+
+    private async Task EditAsync()
+    {
+        if (Editing is null)
+        {
+            return;
+        }
+
+        var current = Editing;
+        await RunMutationAsync(async () =>
+        {
+            var result = await PurchaseService.EditAsync(
+                current.Purchase.Id,
+                EditForm.Description,
+                EditForm.CategoryId,
+                EditForm.TotalAmount,
+                EditForm.FirstEligibleDueDate,
+                EditForm.Reason,
+                current.Purchase.Version);
+            if (result is null)
+            {
+                throw new InvalidOperationException("Há uma versão mais recente. Atualize a tela antes de tentar novamente.");
+            }
+
+            Editing = null;
+        }, "Parcelas futuras atualizadas e auditadas.");
+    }
+
+    private void StartCancellation(InstallmentPurchaseRecord item)
+    {
+        Cancelling = item;
+        CancelForm.Reason = string.Empty;
+    }
+
+    private async Task CancelAsync()
+    {
+        if (Cancelling is null)
+        {
+            return;
+        }
+
+        var current = Cancelling;
+        await RunMutationAsync(async () =>
+        {
+            var result = await PurchaseService.CancelAsync(
+                current.Purchase.Id,
+                CancelForm.Reason,
+                current.Purchase.Version);
+            if (result is null)
+            {
+                throw new InvalidOperationException("Há uma versão mais recente. Atualize a tela antes de tentar novamente.");
+            }
+
+            Cancelling = null;
+        }, "Parcelas futuras previstas canceladas e auditadas.");
+    }
+
+    private async Task ToggleHistoryAsync(Guid purchaseId)
+    {
+        if (HistoryId == purchaseId)
+        {
+            historyRequestVersion++;
+            HistoryId = null;
+            History = [];
+            HistoryError = null;
+            IsHistoryLoading = false;
+            return;
+        }
+
+        var requestVersion = ++historyRequestVersion;
+        HistoryId = purchaseId;
+        History = [];
+        HistoryError = null;
+        IsHistoryLoading = true;
+        try
+        {
+            var history = await PurchaseService.GetHistoryAsync(purchaseId);
+            if (requestVersion == historyRequestVersion && HistoryId == purchaseId)
+            {
+                History = history;
+            }
+        }
+        catch (Exception exception)
+        {
+            if (requestVersion == historyRequestVersion && HistoryId == purchaseId)
+            {
+                Logger.LogError(exception, "Finance list operation failed. Operation={Operation}", "installment_purchase.history");
+                HistoryError = "Não foi possível consultar o histórico do parcelamento.";
+            }
+        }
+        finally
+        {
+            if (requestVersion == historyRequestVersion && HistoryId == purchaseId)
+            {
+                IsHistoryLoading = false;
+            }
+        }
+    }
+
+    private async Task RunMutationAsync(Func<Task> action, string successMessage)
+    {
+        IsBusy = true;
+        MutationMessage = null;
+        MutationFeedbackState = OperationFeedbackState.Idle;
+        Message = null;
+        FeedbackState = OperationFeedbackState.Idle;
+        try
+        {
+            await action();
+            MutationFeedbackState = OperationFeedbackState.Success;
+            MutationMessage = successMessage;
+            await LoadAsync();
+        }
+        catch (ArgumentException exception)
+        {
+            MutationFeedbackState = OperationFeedbackState.Validation;
+            MutationMessage = exception.Message;
+        }
+        catch (InvalidOperationException exception)
+        {
+            MutationFeedbackState = OperationFeedbackState.Validation;
+            MutationMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance mutation failed. Operation={Operation}", "installment_purchase");
+            MutationFeedbackState = OperationFeedbackState.Error;
+            MutationMessage = "Não foi possível concluir a operação financeira.";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static string StatusText(ManualTransactionStatus status) => status switch
+    {
+        ManualTransactionStatus.Planned => "Prevista",
+        ManualTransactionStatus.Realized => "Realizada",
+        ManualTransactionStatus.Cancelled => "Cancelada",
+        _ => "Indisponível"
+    };
+
+    private sealed class CreateFormModel
+    {
+        [Required(ErrorMessage = "Informe a descrição.")]
+        public string Description { get; set; } = string.Empty;
+
+        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ErrorMessage = "Informe um valor positivo dentro do limite permitido.")]
+        public decimal TotalAmount { get; set; }
+
+        [Range(2, InstallmentAllocation.MaximumInstallments, ErrorMessage = "A quantidade deve estar entre 2 e 1.200 parcelas.")]
+        public int InstallmentCount { get; set; } = 2;
+
+        public Guid CategoryId { get; set; }
+
+        [Required(ErrorMessage = "Informe o primeiro vencimento.")]
+        public DateOnly? FirstDueDate { get; set; }
+
+        public void Reset(Guid categoryId)
+        {
+            Description = string.Empty;
+            TotalAmount = 0;
+            InstallmentCount = 2;
+            CategoryId = categoryId;
+            FirstDueDate = null;
+        }
+    }
+
+    private sealed class EditFormModel
+    {
+        [Required(ErrorMessage = "Informe a descrição.")]
+        public string Description { get; set; } = string.Empty;
+
+        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ErrorMessage = "Informe um valor positivo dentro do limite permitido.")]
+        public decimal TotalAmount { get; set; }
+
+        public Guid CategoryId { get; set; }
+        public DateOnly? FirstEligibleDueDate { get; set; }
+
+        [Required(ErrorMessage = "Informe o motivo da edição.")]
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    private sealed class RealizeFormModel
+    {
+        [Required(ErrorMessage = "Informe a data efetiva.")]
+        public DateOnly? EffectiveDate { get; set; }
+    }
+
+    private sealed class CancelFormModel
+    {
+        [Required(ErrorMessage = "Informe o motivo do cancelamento.")]
+        public string Reason { get; set; } = string.Empty;
+    }
+}

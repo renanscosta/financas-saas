@@ -50,6 +50,78 @@ namespace FinancasSaaS.Finance.Infrastructure.Persistence.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.InstallmentPurchaseAuditEventEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChangesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PurchaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PurchaseId", "OccurredAt");
+
+                    b.ToTable("InstallmentPurchaseAuditEvents");
+                });
+
+            modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.InstallmentPurchaseEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("InstallmentCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("OriginalFirstDueDate")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.ToTable("InstallmentPurchases");
+                });
+
             modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.ManualTransactionAuditEventEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -111,6 +183,12 @@ namespace FinancasSaaS.Finance.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly>("ExpectedDate")
                         .HasColumnType("date");
 
+                    b.Property<int?>("InstallmentNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("InstallmentPurchaseId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -133,11 +211,36 @@ namespace FinancasSaaS.Finance.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("InstallmentPurchaseId", "InstallmentNumber")
+                        .IsUnique();
+
                     b.HasIndex("Status", "EffectiveDate");
 
                     b.HasIndex("Status", "ExpectedDate");
 
                     b.ToTable("ManualTransactions");
+                });
+
+            modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.InstallmentPurchaseAuditEventEntity", b =>
+                {
+                    b.HasOne("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.InstallmentPurchaseEntity", "Purchase")
+                        .WithMany("AuditEvents")
+                        .HasForeignKey("PurchaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Purchase");
+                });
+
+            modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.InstallmentPurchaseEntity", b =>
+                {
+                    b.HasOne("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Category");
                 });
 
             modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.ManualTransactionAuditEventEntity", b =>
@@ -159,12 +262,26 @@ namespace FinancasSaaS.Finance.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.InstallmentPurchaseEntity", "InstallmentPurchase")
+                        .WithMany("Installments")
+                        .HasForeignKey("InstallmentPurchaseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Category");
+
+                    b.Navigation("InstallmentPurchase");
                 });
 
             modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.Category", b =>
                 {
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.InstallmentPurchaseEntity", b =>
+                {
+                    b.Navigation("AuditEvents");
+
+                    b.Navigation("Installments");
                 });
 
             modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.ManualTransactionEntity", b =>

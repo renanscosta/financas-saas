@@ -7,8 +7,20 @@ public sealed class PlatformDbContextFactory : IDesignTimeDbContextFactory<Platf
 {
     public PlatformDbContext CreateDbContext(string[] args)
     {
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Platform");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            connectionString = Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING");
+        }
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Defina ConnectionStrings__Platform ou PLATFORM_CONNECTION_STRING para comandos Entity Framework.");
+        }
+
         var options = new DbContextOptionsBuilder<PlatformDbContext>()
-            .UseNpgsql("Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me")
+            .UseNpgsql(connectionString)
             .Options;
 
         return new PlatformDbContext(options);

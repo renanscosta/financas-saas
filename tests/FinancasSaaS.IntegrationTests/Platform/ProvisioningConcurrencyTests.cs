@@ -16,8 +16,7 @@ public sealed class ProvisioningConcurrencyTests
     [Fact]
     public async Task DuasRetentativasDoMesmoTenantPermitemSomenteUmaExecucao()
     {
-        var connection = Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+        var connection = FinancasSaaS.IntegrationTests.Infrastructure.IntegrationTestConnections.Platform;
         var tenantId = Guid.NewGuid();
         var setupOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connection).Options;
         await using (var setup = new PlatformDbContext(setupOptions))

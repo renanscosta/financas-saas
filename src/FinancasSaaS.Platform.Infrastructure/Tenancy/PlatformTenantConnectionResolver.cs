@@ -13,7 +13,7 @@ public sealed class PlatformTenantConnectionResolver(
     public async Task<string?> ResolveAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var target = await ResolveTargetAsync(userId, cancellationToken);
-        return target is not null && options.Value.Connections.TryGetValue(target.Value.DatabaseName, out var connection)
+        return target is not null && options.Value.GetConnectionString(target.Value.DatabaseName) is { } connection
             ? connection
             : null;
     }
@@ -21,7 +21,7 @@ public sealed class PlatformTenantConnectionResolver(
     public async Task<Guid?> ResolveTenantIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var target = await ResolveTargetAsync(userId, cancellationToken);
-        return target is not null && options.Value.Connections.ContainsKey(target.Value.DatabaseName)
+        return target is not null && options.Value.GetConnectionString(target.Value.DatabaseName) is not null
             ? target.Value.TenantId
             : null;
     }

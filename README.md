@@ -20,20 +20,36 @@ Solução .NET 10 para um SaaS de finanças pessoais, organizada como monólito 
 
 ## Configuração local
 
+O comando cria `.env` com credenciais aleatórias (permissão `0600`) na primeira execução,
+inicia PostgreSQL e Mailpit, aplica as migrations da plataforma e configura conexões
+administrativas para os bancos de tenant:
+
 ```bash
-cp .env.example .env
-set -a; . ./.env; set +a
-docker compose -f docker/compose.yaml up -d postgres mailpit
-export PLATFORM_CONNECTION_STRING="Host=${POSTGRES_HOST};Port=${POSTGRES_PORT};Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
-export TENANT_ADMIN_CONNECTION_STRING="$PLATFORM_CONNECTION_STRING"
-dotnet restore
-dotnet build
-dotnet test
+scripts/dev-up.sh --no-seed
 ```
 
 O PostgreSQL local será usado pela plataforma e, posteriormente, pelos bancos individuais dos
- tenants. O Mailpit captura e-mails localmente em `http://localhost:8025` e não envia mensagens
- reais.
+tenants. O Mailpit captura e-mails localmente em `http://localhost:8025` e não envia mensagens
+reais. Os serviços ficam vinculados a `127.0.0.1`. Para criar também um administrador local,
+use `scripts/dev-up.sh --seed`; a senha gerada é exibida no terminal. Use
+`scripts/dev-up.sh --no-seed --prepare-only` para preparar serviços/migrations sem iniciar a
+aplicação ou `scripts/dev-up.sh --no-seed --test` para executar a suíte com as conexões locais.
+Sem `--seed`, o administrador não é criado.
+
+O arquivo `.env` é local, ignorado pelo Git, e não deve ser compartilhado ou usado em produção.
+`.env.example` contém somente marcadores `SUBSTITUIR`. Instruções para segredos de implantação
+estão em [database/deployment.md](database/deployment.md).
+
+O banco do ambiente de desenvolvimento persiste entre reinicializações para não perder dados
+de trabalho. Para começar de novo intencionalmente, execute:
+
+```bash
+docker compose --env-file .env -f docker/compose.yaml down --volumes
+scripts/dev-up.sh --no-seed
+```
+
+O comando `down --volumes` apaga permanentemente os dados locais do PostgreSQL deste projeto;
+não o use se precisar preservar usuários, tenants ou lançamentos locais.
 
 ## Migrations
 
@@ -89,11 +105,15 @@ enviada por e-mail; o cliente define a própria senha pelo convite.
 ## Testes
 
 ```bash
-dotnet test FinancasSaaS.sln
+scripts/dev-up.sh --no-seed --test
 ```
 
-Os testes de integração usam o PostgreSQL local e geram identificadores únicos para não
-reutilizar e-mails, usuários ou bancos de tenants entre execuções.
+O modo de teste inicia um PostgreSQL novo, isolado em `tmpfs` e sem volume persistente,
+aplica as migrations e remove o container ao final. A porta é dinâmica, e a conexão de teste
+é injetada nos projetos de integração. Os testes de performance ficam excluídos do fluxo
+normal do MVP. Os testes financeiros compartilham dois bancos de tenant, executam em série e
+podem criar no máximo um banco temporário adicional. Para executar testes sem iniciar essa
+infraestrutura descartável, configure `PLATFORM_CONNECTION_STRING` antes de chamar `dotnet test`.
 
 ## Troubleshooting
 

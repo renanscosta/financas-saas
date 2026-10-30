@@ -17,7 +17,7 @@ public sealed class PlatformTenantProvisioningCatalog(
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == tenantId, cancellationToken);
 
-        return tenant is not null && options.Value.Connections.TryGetValue(tenant.DatabaseName, out var connection)
+        return tenant is not null && options.Value.GetConnectionString(tenant.DatabaseName) is { } connection
             ? new TenantProvisioningTarget(tenant.DatabaseName, connection)
             : null;
     }
@@ -35,7 +35,7 @@ public sealed class PlatformTenantProvisioningCatalog(
             .Select(item => new TenantFinanceMigrationTarget(
                 item.Id,
                 item.DatabaseName,
-                options.Value.Connections.GetValueOrDefault(item.DatabaseName)))
+                options.Value.GetConnectionString(item.DatabaseName)))
             .ToArray();
     }
 }

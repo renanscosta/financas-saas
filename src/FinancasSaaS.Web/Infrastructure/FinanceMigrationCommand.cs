@@ -67,6 +67,11 @@ public sealed class FinanceMigrationCommand(TenantFinanceMigrationRunner runner)
         catch (TenantFinanceMigrationException exception)
         {
             writeError(exception.Message);
+            if (exception.Diagnostic is { } diagnostic)
+            {
+                writeError($"Diagnóstico seguro: {JsonSerializer.Serialize(diagnostic, JsonOptions)}");
+            }
+
             return 1;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
