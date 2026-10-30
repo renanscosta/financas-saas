@@ -12,7 +12,7 @@ public sealed class RegistrationConcurrencyTests
     [Fact]
     public async Task CadastrosConcorrentesPreservamUmUnicoClienteETenant()
     {
-        var connection = "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+        var connection = FinancasSaaS.IntegrationTests.Infrastructure.IntegrationTestConnections.Platform;
         var setupOptions = new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connection).Options;
         await using (var setup = new PlatformDbContext(setupOptions))
         {

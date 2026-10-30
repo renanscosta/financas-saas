@@ -1,0 +1,63 @@
+@using System.Globalization
+@using FinancasSaaS.Domain.Finance
+
+<section aria-label="Histórico do parcelamento">
+    <h4>Histórico imutável</h4>
+    @if (IsLoading)
+    {
+        <p role="status">Carregando histórico…</p>
+    }
+    else if (ErrorMessage is not null)
+    {
+        <p role="alert">@ErrorMessage</p>
+    }
+    else if (Events.Count == 0)
+    {
+        <p>Nenhum evento de auditoria foi encontrado.</p>
+    }
+    else
+    {
+        <ol class="finance-list">
+            @foreach (var auditEvent in Events)
+            {
+                <li class="finance-item">
+                    <h5>@EventText(auditEvent.EventType)</h5>
+                    <p>Responsável: @auditEvent.ActorId · Instante: @auditEvent.OccurredAt.ToString("dd/MM/yyyy HH:mm:ss 'UTC'", CultureInfo.InvariantCulture)</p>
+                    @if (!string.IsNullOrWhiteSpace(auditEvent.Reason))
+                    {
+                        <p>Motivo: @auditEvent.Reason</p>
+                    }
+                    <ul>
+                        @foreach (var change in auditEvent.Changes)
+                        {
+                            <li>
+                                @(change.InstallmentNumber is { } number ? $"Parcela {number} · " : "")
+                                @change.Field: @(change.PreviousValue ?? "—") → @(change.NewValue ?? "—")
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+        </ol>
+    }
+</section>
+
+@code {
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<InstallmentPurchaseAuditEvent> Events { get; set; } = [];
+
+    private static string EventText(string eventType) => eventType switch
+    {
+        "Creation" => "Criação",
+        "Realization" => "Realização",
+        "Edit" => "Edição",
+        "Cancellation" => "Cancelamento",
+        _ => "Alteração financeira"
+    };
+}

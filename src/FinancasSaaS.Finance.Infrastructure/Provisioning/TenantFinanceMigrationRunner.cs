@@ -2,6 +2,7 @@ using FinancasSaaS.Application.Abstractions;
 using DomainCategory = FinancasSaaS.Domain.Finance.Category;
 using FinancasSaaS.Finance.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace FinancasSaaS.Finance.Infrastructure.Provisioning;
 
@@ -14,7 +15,28 @@ public sealed record TenantFinanceTenantAudit(
 public sealed record TenantFinanceMigrationStatus(string MigrationId, bool Applied);
 public sealed record TenantDefaultCategoryAudit(string Name, string State);
 
-public sealed class TenantFinanceMigrationException(string message) : Exception(message);
+public sealed record TenantFinanceMigrationDiagnostic(
+    string Operation,
+    Guid TenantId,
+    string ExceptionType,
+    string? SqlState);
+
+public sealed class TenantFinanceMigrationException : Exception
+{
+    public TenantFinanceMigrationDiagnostic? Diagnostic { get; }
+
+    public TenantFinanceMigrationException(string message) : base(message)
+    {
+    }
+
+    public TenantFinanceMigrationException(
+        string message,
+        TenantFinanceMigrationDiagnostic diagnostic,
+        Exception innerException) : base(message, innerException)
+    {
+        Diagnostic = diagnostic;
+    }
+}
 
 public sealed class TenantFinanceMigrationRunner(
     ITenantProvisioningCatalog catalog,
@@ -22,8 +44,10 @@ public sealed class TenantFinanceMigrationRunner(
 {
     private const string FinanceMigrationId = "20261028032258_ManualTransactionsAndNormalizedCategories";
     private const string ReactivateDefaultsMigrationId = "20261029181614_ReactivateExistingDefaultCategories";
+    private const string InstallmentPurchasesMigrationId = "20261029234535_InstallmentPurchasesAndAudit";
     private static readonly string[] DefaultCategories = ["Lanches", "Mercado", "Pessoal"];
-    private static readonly string[] FinanceMigrationIds = [FinanceMigrationId, ReactivateDefaultsMigrationId];
+    private static readonly string[] FinanceMigrationIds =
+        [FinanceMigrationId, ReactivateDefaultsMigrationId, InstallmentPurchasesMigrationId];
 
     public async Task<TenantFinanceInventory> CreateInventoryAsync(CancellationToken cancellationToken = default)
     {
@@ -87,7 +111,9 @@ public sealed class TenantFinanceMigrationRunner(
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 throw new TenantFinanceMigrationException(
-                    $"Falha ao auditar o tenant {target.TenantId}. O rollout deve permanecer bloqueado.");
+                    $"Falha ao auditar o tenant {target.TenantId}. O rollout deve permanecer bloqueado.",
+                    CreateDiagnostic("audit", target.TenantId, exception),
+                    exception);
             }
         }
 
@@ -126,7 +152,9 @@ public sealed class TenantFinanceMigrationRunner(
             {
                 reportProgress?.Invoke(target.TenantId, "falhou");
                 throw new TenantFinanceMigrationException(
-                    $"Falha ao atualizar o tenant {target.TenantId}. O rollout deve permanecer bloqueado.");
+                    $"Falha ao atualizar o tenant {target.TenantId}. O rollout deve permanecer bloqueado.",
+                    CreateDiagnostic("migration", target.TenantId, exception),
+                    exception);
             }
 
             reportProgress?.Invoke(target.TenantId, "concluído");
@@ -161,4 +189,21 @@ public sealed class TenantFinanceMigrationRunner(
         }
     }
 
+    private static TenantFinanceMigrationDiagnostic CreateDiagnostic(
+        string operation,
+        Guid tenantId,
+        Exception exception)
+    {
+        var sqlState = exception switch
+        {
+            PostgresException postgresException => postgresException.SqlState,
+            NpgsqlException npgsqlException => npgsqlException.SqlState,
+            _ => null
+        };
+        return new TenantFinanceMigrationDiagnostic(
+            operation,
+            tenantId,
+            exception.GetType().Name,
+            sqlState);
+    }
 }

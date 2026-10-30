@@ -8,6 +8,8 @@ namespace FinancasSaaS.Web.Tests.Platform;
 
 public sealed class FinanceMigrationCommandTests
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     [Fact]
     public async Task CriaEConsomeInventarioSemSegredos()
     {
@@ -97,6 +99,52 @@ public sealed class FinanceMigrationCommandTests
     }
 
     [Fact]
+    public async Task FalhaDeAuditoriaEmiteDiagnosticoEstruturadoSemSegredos()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"finance-inventory-{Guid.NewGuid():N}.json");
+        var tenantId = Guid.NewGuid();
+        const string connectionString =
+            "Host=127.0.0.1;Port=1;Database=finance-test;Username=test-user;Password=test-password;Timeout=1";
+        try
+        {
+            await File.WriteAllTextAsync(
+                path,
+                JsonSerializer.Serialize(
+                    new TenantFinanceInventory(DateTimeOffset.UnixEpoch, [tenantId]),
+                    JsonOptions));
+            var target = new TenantFinanceMigrationTarget(tenantId, "temporary", connectionString);
+            var runner = new TenantFinanceMigrationRunner(new SingleTargetCatalog(target), new FixedClock());
+            var command = new FinanceMigrationCommand(runner);
+            var errors = new List<string>();
+
+            var exitCode = await command.ExecuteAsync(
+                ["--audit-finance-tenants", "--tenant-inventory", path, "--output", Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))],
+                writeError: errors.Add);
+
+            Assert.Equal(1, exitCode);
+            Assert.Equal(2, errors.Count);
+            Assert.Contains(tenantId.ToString(), errors[0], StringComparison.Ordinal);
+            Assert.StartsWith("Diagnóstico seguro: ", errors[1], StringComparison.Ordinal);
+            var diagnosticJson = errors[1]["Diagnóstico seguro: ".Length..];
+            using var diagnosticDocument = JsonDocument.Parse(diagnosticJson);
+            var diagnostic = diagnosticDocument.RootElement;
+            Assert.Equal("audit", diagnostic.GetProperty("operation").GetString());
+            Assert.Equal(tenantId, diagnostic.GetProperty("tenantId").GetGuid());
+            Assert.Equal("NpgsqlException", diagnostic.GetProperty("exceptionType").GetString());
+            Assert.DoesNotContain(connectionString, errors[1], StringComparison.Ordinal);
+            Assert.DoesNotContain("test-password", errors[1], StringComparison.Ordinal);
+            Assert.DoesNotContain("test-user", errors[1], StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
     public async Task CriacaoDeInventarioNaoSobrescreveArquivoExistente()
     {
         var path = Path.Combine(Path.GetTempPath(), $"finance-inventory-{Guid.NewGuid():N}.json");
@@ -163,6 +211,23 @@ public sealed class FinanceMigrationCommandTests
     private static TenantFinanceMigrationRunner CreateRunner() =>
         new(new EmptyCatalog(), new FixedClock());
 
+    private sealed class FixedClock : ISystemClock
+    {
+        public DateTimeOffset UtcNow => DateTimeOffset.UnixEpoch;
+    }
+
+    private sealed class SingleTargetCatalog(TenantFinanceMigrationTarget target) : ITenantProvisioningCatalog
+    {
+        public Task<TenantProvisioningTarget?> GetAsync(
+            Guid tenantId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<TenantProvisioningTarget?>(null);
+
+        public Task<IReadOnlyList<TenantFinanceMigrationTarget>> ListReadyAsync(
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<TenantFinanceMigrationTarget>>([target]);
+    }
+
     private sealed class EmptyCatalog : ITenantProvisioningCatalog
     {
         public Task<TenantProvisioningTarget?> GetAsync(
@@ -175,8 +240,4 @@ public sealed class FinanceMigrationCommandTests
             Task.FromResult<IReadOnlyList<TenantFinanceMigrationTarget>>([]);
     }
 
-    private sealed class FixedClock : ISystemClock
-    {
-        public DateTimeOffset UtcNow => DateTimeOffset.UnixEpoch;
-    }
 }

@@ -11,8 +11,7 @@ public sealed class RegistrationAuditAtomicityTests
     [Fact]
     public async Task FalhaAoAuditarNaoConfirmaCadastroParcial()
     {
-        var connection = Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+        var connection = FinancasSaaS.IntegrationTests.Infrastructure.IntegrationTestConnections.Platform;
         var options = new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(connection).Options;
         await using var db = new PlatformDbContext(options);
         await db.Database.MigrateAsync();

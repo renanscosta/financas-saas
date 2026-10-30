@@ -15,6 +15,9 @@ public sealed class ManualTransactionEntity
     public DateOnly? EffectiveDate { get; set; }
     public ManualTransactionStatus? StatusBeforeCancellation { get; set; }
     public long Version { get; set; }
+    public Guid? InstallmentPurchaseId { get; set; }
+    public int? InstallmentNumber { get; set; }
     public Category? Category { get; set; }
+    public InstallmentPurchaseEntity? InstallmentPurchase { get; set; }
     public ICollection<ManualTransactionAuditEventEntity> AuditEvents { get; set; } = [];
 }

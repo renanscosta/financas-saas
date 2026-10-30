@@ -14,8 +14,7 @@ public sealed class IdentitySeederIntegrationTests
     [Fact]
     public async Task SeederCriaSomenteRolesPrevistasEAdministradorDeFormaIdempotente()
     {
-        var connection = Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+        var connection = FinancasSaaS.IntegrationTests.Infrastructure.IntegrationTestConnections.Platform;
         var email = $"admin-{Guid.NewGuid():N}@example.com";
         var services = new ServiceCollection();
         services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(connection));

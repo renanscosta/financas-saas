@@ -15,15 +15,7 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
 
     public TenantDatabaseFixture()
     {
-        var configuredConnection = Environment.GetEnvironmentVariable("TENANT_ADMIN_CONNECTION_STRING")
-            ?? Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING")
-            ?? throw new InvalidOperationException(
-                "Defina TENANT_ADMIN_CONNECTION_STRING ou PLATFORM_CONNECTION_STRING para os testes PostgreSQL financeiros.");
-        var adminBuilder = new NpgsqlConnectionStringBuilder(configuredConnection)
-        {
-            Database = "postgres"
-        };
-        _adminConnectionString = adminBuilder.ConnectionString;
+        _adminConnectionString = IntegrationTestConnections.GetAdmin();
     }
 
     public async Task InitializeAsync()
@@ -47,7 +39,13 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
             .Options;
         await using var db = new TenantDbContext(options);
         await db.Database.ExecuteSqlRawAsync(
-            "DELETE FROM \"ManualTransactionAuditEvents\"; DELETE FROM \"ManualTransactions\"; DELETE FROM \"Categories\";");
+            """
+            DELETE FROM "ManualTransactionAuditEvents";
+            DELETE FROM "InstallmentPurchaseAuditEvents";
+            DELETE FROM "ManualTransactions";
+            DELETE FROM "InstallmentPurchases";
+            DELETE FROM "Categories";
+            """);
     }
 
     public async Task<(Guid TenantId, string ConnectionString)> CreateTemporaryTenantDatabaseAsync()

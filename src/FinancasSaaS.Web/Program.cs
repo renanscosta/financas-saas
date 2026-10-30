@@ -16,6 +16,7 @@ using FinancasSaaS.Application.Platform.ProvisionTenant;
 using FinancasSaaS.Application.Platform.RegisterCustomer;
 using FinancasSaaS.Application.Finance.Categories;
 using FinancasSaaS.Application.Finance.ManualTransactions;
+using FinancasSaaS.Application.Finance.InstallmentPurchases;
 using FinancasSaaS.Application.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -26,8 +27,16 @@ using FinancasSaaS.Finance.Infrastructure.Provisioning;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-var platformConnection = builder.Configuration.GetConnectionString("Platform")
-    ?? "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+var platformConnection = builder.Configuration.GetConnectionString("Platform");
+if (string.IsNullOrWhiteSpace(platformConnection))
+{
+    platformConnection = Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING");
+}
+
+if (string.IsNullOrWhiteSpace(platformConnection))
+{
+    platformConnection = "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+}
 
 builder.Services.AddDbContext<PlatformDbContext>(options => options.UseNpgsql(platformConnection));
 builder.Services.AddIdentityCore<ApplicationUser>()
@@ -58,6 +67,7 @@ builder.Services.AddScoped<CompleteRegistrationUseCase>();
 builder.Services.AddScoped<DeactivateCustomerUseCase>();
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<ManualTransactionService>();
+builder.Services.AddScoped<InstallmentPurchaseService>();
 builder.Services.Configure<MailpitOptions>(builder.Configuration.GetSection("Mailpit"));
 builder.Services.AddHealthChecks()
     .AddCheck<PlatformDatabaseHealthCheck>("postgresql")

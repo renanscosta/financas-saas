@@ -1,5 +1,6 @@
 using FinancasSaaS.Application.Abstractions;
 using FinancasSaaS.Finance.Infrastructure.Categories;
+using FinancasSaaS.Finance.Infrastructure.InstallmentPurchases;
 using FinancasSaaS.Finance.Infrastructure.ManualTransactions;
 using FinancasSaaS.Finance.Infrastructure.Persistence;
 using FinancasSaaS.Finance.Infrastructure.Provisioning;
@@ -16,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<TenantFinanceMigrationRunner>();
         services.AddScoped<ICategoryStore, CategoryStore>();
         services.AddScoped<IManualTransactionStore, ManualTransactionStore>();
+        services.AddScoped<IInstallmentPurchaseStore, InstallmentPurchaseStore>();
         return services;
     }
 }

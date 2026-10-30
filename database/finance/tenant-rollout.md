@@ -27,6 +27,8 @@ dotnet run --project src/FinancasSaaS.Web/FinancasSaaS.Web.csproj -- --audit-fin
 
 O relatório informa o estado de cada migration financeira e das categorias padrão (`active`, `inactive`, `missing` ou `conflict`), sem connection strings. Quando a migration inicial já estiver aplicada e uma categoria estiver ausente/renomeada, exija evidência operacional de que a ausência foi intencional; se não for possível distinguir exclusão intencional de seed faltante, mantenha o rollout bloqueado e peça decisão explícita. Não execute backfill cego. Conflitos entre nomes equivalentes sempre precisam de resolução manual.
 
+Se uma auditoria ou migration falhar, o comando escreve em stderr um diagnóstico JSON seguro com operação, ID do tenant, tipo da exceção e SQLSTATE quando disponível. A exceção técnica original é preservada internamente, mas sua mensagem e a connection string não são impressas. Use o SQLSTATE para direcionar a investigação; por exemplo, `3D000` indica banco de dados inexistente. Mantenha o rollout bloqueado até corrigir a causa e obter uma auditoria limpa.
+
 Execute as migrations usando o mesmo manifesto imutável:
 
 ```bash

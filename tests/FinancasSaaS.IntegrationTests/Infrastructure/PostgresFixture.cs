@@ -2,16 +2,14 @@ using Npgsql;
 
 namespace FinancasSaaS.IntegrationTests.Infrastructure;
 
-public sealed class PostgresFixture
+public static class PostgresFixture
 {
-    public string PlatformConnectionString { get; } =
-        Environment.GetEnvironmentVariable("PLATFORM_CONNECTION_STRING")
-        ?? "Host=localhost;Port=5432;Database=financas_platform;Username=financas;Password=local-only-change-me";
+    public static string PlatformConnectionString => IntegrationTestConnections.Platform;
 
     public static string GetTenantConnectionString(Guid tenantId) =>
-        $"Host=localhost;Port=5432;Database=financas_tenant_{tenantId:N};Username=financas;Password=local-only-change-me";
+        IntegrationTestConnections.GetTenant(tenantId);
 
-    public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
+    public static async Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = new NpgsqlConnection(PlatformConnectionString);
         try

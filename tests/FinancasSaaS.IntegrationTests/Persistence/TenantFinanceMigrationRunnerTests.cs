@@ -8,8 +8,8 @@ using Xunit;
 
 namespace FinancasSaaS.IntegrationTests.Persistence;
 
+[Collection("Tenant database integration")]
 public sealed class TenantFinanceMigrationRunnerTests(TenantDatabaseFixture fixture)
-    : IClassFixture<TenantDatabaseFixture>
 {
     [Fact]
     public async Task MigrationInicialSemeiaUmaVezEExecutarNovamenteRespeitaEdicoesDoCliente()
@@ -152,6 +152,66 @@ public sealed class TenantFinanceMigrationRunnerTests(TenantDatabaseFixture fixt
         {
             await fixture.DeleteTemporaryTenantDatabaseAsync(tenantId);
         }
+    }
+
+    [Fact]
+    public async Task FalhaDeAuditoriaPreservaDiagnosticoSeguroSemExporConexao()
+    {
+        var (tenantId, connectionString) = await fixture.CreateTemporaryTenantDatabaseAsync();
+        try
+        {
+            var catalog = new MutableCatalog(
+            [
+                new TenantFinanceMigrationTarget(tenantId, "temporary", connectionString)
+            ]);
+            var runner = new TenantFinanceMigrationRunner(catalog, new FixedClock());
+
+            var exception = await Assert.ThrowsAsync<TenantFinanceMigrationException>(() =>
+                runner.AuditAsync(new TenantFinanceInventory(DateTimeOffset.UnixEpoch, [tenantId])));
+
+            var diagnostic = Assert.IsType<TenantFinanceMigrationDiagnostic>(exception.Diagnostic);
+            Assert.Equal("audit", diagnostic.Operation);
+            Assert.Equal(tenantId, diagnostic.TenantId);
+            Assert.Equal("PostgresException", diagnostic.ExceptionType);
+            Assert.Equal("42P01", diagnostic.SqlState);
+            Assert.IsType<Npgsql.PostgresException>(exception.InnerException);
+
+            var serialized = JsonSerializer.Serialize(diagnostic);
+            Assert.DoesNotContain(connectionString, serialized, StringComparison.Ordinal);
+            Assert.DoesNotContain("Password", serialized, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await fixture.DeleteTemporaryTenantDatabaseAsync(tenantId);
+        }
+    }
+
+    [Fact]
+    public async Task FalhaDeMigrationPreservaDiagnosticoSeguroSemExporConexao()
+    {
+        var tenantId = Guid.NewGuid();
+        const string connectionString =
+            "Host=127.0.0.1;Port=1;Database=finance-test;Username=test-user;Password=test-password;Timeout=1";
+        var catalog = new MutableCatalog(
+        [
+            new TenantFinanceMigrationTarget(tenantId, "temporary", connectionString)
+        ]);
+        var runner = new TenantFinanceMigrationRunner(catalog, new FixedClock());
+
+        var exception = await Assert.ThrowsAsync<TenantFinanceMigrationException>(() =>
+            runner.MigrateAsync(new TenantFinanceInventory(DateTimeOffset.UnixEpoch, [tenantId])));
+
+        var diagnostic = Assert.IsType<TenantFinanceMigrationDiagnostic>(exception.Diagnostic);
+        Assert.Equal("migration", diagnostic.Operation);
+        Assert.Equal(tenantId, diagnostic.TenantId);
+        Assert.Equal("NpgsqlException", diagnostic.ExceptionType);
+        Assert.Null(diagnostic.SqlState);
+        Assert.NotNull(exception.InnerException);
+
+        var serialized = JsonSerializer.Serialize(diagnostic);
+        Assert.DoesNotContain(connectionString, serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("test-password", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("test-user", serialized, StringComparison.Ordinal);
     }
 
     [Fact]

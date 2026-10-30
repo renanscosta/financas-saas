@@ -28,6 +28,19 @@ public sealed class TransactionFeedbackRenderingTests
     }
 
     [Fact]
+    public async Task AusenciaDeParcelasElegiveisExibeFeedbackDeValidacao()
+    {
+        var html = WebUtility.HtmlDecode(await RenderAsync<TransactionMutationFeedback>(new Dictionary<string, object?>
+        {
+            [nameof(TransactionMutationFeedback.MutationState)] = OperationFeedbackState.Validation,
+            [nameof(TransactionMutationFeedback.MutationMessage)] = "Não há parcelas futuras previstas para alterar."
+        }));
+
+        Assert.Contains("data-state=\"validation\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Não há parcelas futuras previstas para alterar.", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SucessoDaMutacaoDeCategoriaPermaneceSeparadoDoErroDeAtualizacao()
     {
         var html = WebUtility.HtmlDecode(await RenderAsync<CategoryMutationFeedback>(new Dictionary<string, object?>

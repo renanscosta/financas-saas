@@ -32,7 +32,9 @@ public sealed class ManualTransactionStore(ITenantFinanceContextFactory contextF
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await db.ManualTransactions.AsNoTracking()
             .Include(item => item.Category)
-            .SingleOrDefaultAsync(item => item.Id == transactionId, cancellationToken);
+            .SingleOrDefaultAsync(
+                item => item.Id == transactionId && item.InstallmentPurchaseId == null,
+                cancellationToken);
         return entity is null ? null : ToRecord(entity);
     }
 
@@ -50,6 +52,7 @@ public sealed class ManualTransactionStore(ITenantFinanceContextFactory contextF
         var query = db.ManualTransactions
             .AsNoTracking()
             .Include(item => item.Category)
+            .Where(item => item.InstallmentPurchaseId == null)
             .Where(item =>
                 item.Status == ManualTransactionStatus.Planned &&
                     item.ExpectedDate >= filter.StartDate && item.ExpectedDate <= filter.EndDate ||
@@ -97,7 +100,9 @@ public sealed class ManualTransactionStore(ITenantFinanceContextFactory contextF
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await db.ManualTransactions
             .Include(item => item.Category)
-            .SingleOrDefaultAsync(item => item.Id == transactionId, cancellationToken);
+            .SingleOrDefaultAsync(
+                item => item.Id == transactionId && item.InstallmentPurchaseId == null,
+                cancellationToken);
         if (entity is null || entity.Version != expectedVersion)
         {
             return null;
@@ -130,7 +135,9 @@ public sealed class ManualTransactionStore(ITenantFinanceContextFactory contextF
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await db.ManualTransactions
             .Include(item => item.Category)
-            .SingleOrDefaultAsync(item => item.Id == transactionId, cancellationToken);
+            .SingleOrDefaultAsync(
+                item => item.Id == transactionId && item.InstallmentPurchaseId == null,
+                cancellationToken);
         if (entity is null || entity.Version != expectedVersion)
         {
             return null;
@@ -172,7 +179,9 @@ public sealed class ManualTransactionStore(ITenantFinanceContextFactory contextF
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await db.ManualTransactions
             .Include(item => item.Category)
-            .SingleOrDefaultAsync(item => item.Id == transactionId, cancellationToken);
+            .SingleOrDefaultAsync(
+                item => item.Id == transactionId && item.InstallmentPurchaseId == null,
+                cancellationToken);
         if (entity is null || entity.Version != expectedVersion)
         {
             return null;
