@@ -1,0 +1,114 @@
+@using FinancasSaaS.Application.Finance.Reports
+@using FinancasSaaS.Domain.Finance
+@implements IDisposable
+@inject FinanceReportService ReportService
+
+<section aria-labelledby="composition-title" class="report-composition">
+    <h2 id="composition-title" tabindex="-1" @ref="TitleElement">@Title</h2>
+    <button type="button" @onclick="Close">Fechar</button>
+    <div aria-live="polite" aria-atomic="true">
+        @if (IsLoading)
+        {
+            <p role="status">Carregando lançamentos...</p>
+        }
+        else if (HasError)
+        {
+            <p role="alert">Não foi possível consultar os lançamentos.</p>
+            <button type="button" @onclick="LoadAsync">Tentar novamente</button>
+        }
+        else if (Composition is { } composition)
+        {
+            @if (composition.DataUpdated)
+            {
+                <p>Os dados foram atualizados desde a última consulta.</p>
+            }
+            @if (composition.Count == 0)
+            {
+                <p>Nenhum lançamento encontrado para este total.</p>
+            }
+            else
+            {
+                <table class="report-table">
+                    <thead><tr><th>Descrição</th><th>Categoria</th><th>Tipo e estado</th><th>Datas</th><th>Valor</th><th>Origem</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in composition.Items)
+                    {
+                        <tr>
+                            <th scope="row">@item.Description</th>
+                            <td data-label="Categoria">@item.CategoryName</td>
+                            <td data-label="Tipo e estado">@(item.Type == ManualTransactionType.Income ? "Entrada" : "Despesa") / @(item.Status == ManualTransactionStatus.Planned ? "Previsto" : "Realizado")</td>
+                            <td data-label="Datas">Competência: @BrazilianFormat.Month(item.CompetenceDate); prevista: @BrazilianFormat.Date(item.ExpectedDate)@if (item.EffectiveDate is { } effectiveDate) { <span>; efetiva: @BrazilianFormat.Date(effectiveDate)</span> }</td>
+                            <td data-label="Valor">@BrazilianFormat.Money(item.Amount)</td>
+                            <td data-label="Origem">
+                                @if (item.PurchaseId is not null)
+                                {
+                                    <span>@item.PurchaseDescription, parcela @item.InstallmentNumber de @item.InstallmentCount. </span><a href="/cliente/compras-parceladas">Compras parceladas</a>
+                                }
+                                else
+                                {
+                                    <a href="/cliente/lancamentos">Lançamentos</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+            <p>Total: @BrazilianFormat.Money(composition.Total) | Quantidade: @composition.Count</p>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public required FinanceReportQuery Query { get; set; }
+    [Parameter, EditorRequired] public required string Title { get; set; }
+    [Parameter] public decimal ExpectedTotal { get; set; }
+    [Parameter] public EventCallback Close { get; set; }
+    private FinanceReportComposition? Composition;
+    private FinanceReportQuery? LastQuery;
+    private bool IsLoading;
+    private bool HasError;
+    private bool FocusTitle;
+    private ElementReference TitleElement;
+    private int RequestVersion;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ReferenceEquals(LastQuery, Query)) return;
+        LastQuery = Query;
+        FocusTitle = true;
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (FocusTitle)
+        {
+            FocusTitle = false;
+            await TitleElement.FocusAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var version = ++RequestVersion;
+        IsLoading = true;
+        HasError = false;
+        Composition = null;
+        try
+        {
+            var result = await ReportService.GetCompositionAsync(Query, ExpectedTotal);
+            if (version == RequestVersion) Composition = result;
+        }
+        catch (Exception)
+        {
+            if (version == RequestVersion) HasError = true;
+        }
+        finally
+        {
+            if (version == RequestVersion) IsLoading = false;
+        }
+    }
+
+    public void Dispose() => RequestVersion++;
+}

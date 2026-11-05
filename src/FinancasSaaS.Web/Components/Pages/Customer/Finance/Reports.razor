@@ -1,0 +1,250 @@
+@page "/cliente/relatorios"
+@using FinancasSaaS.Application.Finance.Reports
+@using FinancasSaaS.Domain.Finance
+@using FinancasSaaS.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = PlatformPolicies.TenantAccess)]
+@layout CustomerLayout
+@inject FinanceReportService ReportService
+@inject NavigationManager Navigation
+@inject ReportCriterionSession CriterionSession
+
+<PageTitle>Relatórios financeiros</PageTitle>
+<h1>Relatórios financeiros</h1>
+@if (CriterionReady)
+{
+    <DateCriterionSelector Criterion="Criterion" CriterionChanged="ChangeCriterionAsync" />
+}
+<div class="report-month-control">
+    <label for="report-start">Data inicial</label>
+    <input id="report-start" type="date" @bind="Start" @bind:after="LoadAsync" aria-describedby="report-period-error" />
+    <label for="report-end">Data final</label>
+    <input id="report-end" type="date" @bind="End" @bind:after="LoadAsync" aria-describedby="report-period-error" />
+    <label for="report-category">Categoria</label>
+    <select id="report-category" @bind="CategoryId" @bind:after="LoadAsync" aria-describedby="report-category-error">
+        <option value="">Todas</option>
+        @foreach (var category in Categories)
+        {
+            <option value="@category.Id">@category.Name</option>
+        }
+    </select>
+    <label for="report-status">Estado</label>
+    <select id="report-status" @bind="Status" @bind:after="LoadAsync">
+        <option value="">Todos</option>
+        <option value="Planned">Previsto</option>
+        <option value="Realized">Realizado</option>
+    </select>
+    <button type="button" @onclick="ClearFiltersAsync">Limpar filtros</button>
+</div>
+<p id="report-period-error" role="status">@PeriodError</p>
+<p id="report-category-error" role="status">@CategoryError</p>
+@if (Notice is not null)
+{
+    <p role="status">@Notice</p>
+}
+<div aria-live="polite" aria-atomic="true">
+    @if (IsLoading)
+    {
+        <p role="status">Carregando relatório...</p>
+    }
+    else if (HasError)
+    {
+        <p role="alert">Não foi possível consultar o relatório.</p>
+        <button type="button" @onclick="InitializeAsync">Tentar novamente</button>
+    }
+    else if (Report is { } report)
+    {
+        @if (!report.HasData)
+        {
+            <p>Nenhuma despesa encontrada. Os filtros podem restringir o resultado. <a href="/cliente/lancamentos">Registrar lançamento</a>.</p>
+        }
+        else
+        {
+            @foreach (var month in report.Lines.GroupBy(line => line.ReferenceMonth))
+            {
+                var monthTotal = report.Months.Single(item => item.ReferenceMonth == month.Key);
+                <section>
+                    <h2>@BrazilianFormat.Month(month.Key)</h2>
+                    <table class="report-table">
+                        <thead><tr><th>Categoria</th><th>Previsto</th><th>Realizado</th></tr></thead>
+                        <tbody>
+                        @foreach (var line in month)
+                        {
+                            <tr>
+                                <th scope="row">@line.CategoryName</th>
+                                <td data-label="Previsto">@BrazilianFormat.Money(line.Planned) @if (Status is null or ManualTransactionStatus.Planned) { <ReportCompositionButton Label="@($"Ver previstas em {line.CategoryName}, {BrazilianFormat.Month(month.Key)}")" Open='source => OpenComposition(month.Key, line.CategoryId, ManualTransactionStatus.Planned, $"Despesas previstas em {line.CategoryName}", line.Planned, source)' /> }</td>
+                                <td data-label="Realizado">@BrazilianFormat.Money(line.Realized) @if (Status is null or ManualTransactionStatus.Realized) { <ReportCompositionButton Label="@($"Ver realizadas em {line.CategoryName}, {BrazilianFormat.Month(month.Key)}")" Open='source => OpenComposition(month.Key, line.CategoryId, ManualTransactionStatus.Realized, $"Despesas realizadas em {line.CategoryName}", line.Realized, source)' /> }</td>
+                            </tr>
+                        }
+                        <tr><th scope="row">Total do mês <ReportCompositionButton Label="@($"Ver total de {BrazilianFormat.Month(month.Key)}")" Open='source => OpenComposition(month.Key, null, null, "Total do mês", monthTotal.Planned + monthTotal.Realized, source)' /></th><td data-label="Previsto">@BrazilianFormat.Money(monthTotal.Planned)</td><td data-label="Realizado">@BrazilianFormat.Money(monthTotal.Realized)</td></tr>
+                        </tbody>
+                    </table>
+                </section>
+            }
+            <h2>Totais por categoria</h2>
+            <table class="report-table">
+                <thead><tr><th>Categoria</th><th>Total</th></tr></thead>
+                <tbody>
+                @foreach (var category in report.Categories)
+                {
+                    <tr><th scope="row">@category.CategoryName</th><td data-label="Total">@BrazilianFormat.Money(category.Planned + category.Realized) <ReportCompositionButton Label="@($"Ver total de {category.CategoryName}")" Open='source => OpenComposition(null, category.CategoryId, null, $"Total de {category.CategoryName}", category.Planned + category.Realized, source)' /></td></tr>
+                }
+                </tbody>
+            </table>
+            <h2>Total geral</h2>
+            <p>Previsto: @BrazilianFormat.Money(report.PlannedTotal) | Realizado: @BrazilianFormat.Money(report.RealizedTotal)</p>
+            <ReportCompositionButton Label="Ver lançamentos do total geral" Open='source => OpenComposition(null, null, null, "Total geral", report.Total, source)' />
+        }
+    }
+</div>
+@if (CompositionQuery is not null)
+{
+    <ReportCompositionPanel Query="CompositionQuery" Title="CompositionTitle" ExpectedTotal="CompositionExpected" Close="CloseComposition" />
+}
+
+@code {
+    private DateOnly? Start;
+    private DateOnly? End;
+    private Guid? CategoryId;
+    private ManualTransactionStatus? Status;
+    private IReadOnlyList<FinanceReportCategory> Categories = [];
+    private FinanceExpensesReport? Report;
+    private string? PeriodError;
+    private string? CategoryError;
+    private string? Notice;
+    private bool IsLoading;
+    private bool HasError;
+    private bool InvalidCategoryParameter;
+    private int RequestVersion;
+    private ReportDateCriterion Criterion = ReportDateCriterion.Competence;
+    private bool CriterionReady;
+    private FinanceReportQuery? CompositionQuery;
+    private string CompositionTitle = string.Empty;
+    private decimal CompositionExpected;
+    private ElementReference CompositionSource;
+
+    private void OpenComposition(DateOnly? month, Guid? category, ManualTransactionStatus? status, string title, decimal expected, ElementReference source)
+    {
+        CompositionSource = source;
+        var criterionLabel = Criterion == ReportDateCriterion.Competence ? "competência" : "pagamento/recebimento";
+        CompositionTitle = month is { } referenceMonth ? $"{title}, {BrazilianFormat.Month(referenceMonth)}, por {criterionLabel}" : $"{title}, por {criterionLabel}";
+        CompositionExpected = expected;
+        CompositionQuery = new FinanceReportQuery(ReportPeriod.ForRange(Start, End), Criterion,
+            ManualTransactionType.Expense, status ?? Status, category ?? CategoryId, month);
+    }
+
+    private async Task CloseComposition()
+    {
+        CompositionQuery = null;
+        await CompositionSource.FocusAsync();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var parameters = ReportQueryParameters.Parse(new Uri(Navigation.Uri), DateOnly.FromDateTime(DateTime.Today));
+        Start = parameters.Start;
+        End = parameters.End;
+        CategoryId = parameters.CategoryId;
+        Status = parameters.Status;
+        InvalidCategoryParameter = parameters.InvalidCategory;
+        Notice = parameters.InvalidStatus ? "Estado inválido; exibindo todos os estados." : null;
+        await InitializeAsync();
+    }
+
+    private async Task InitializeAsync()
+    {
+        var version = ++RequestVersion;
+        CompositionQuery = null;
+        IsLoading = true;
+        HasError = false;
+        Report = null;
+        try
+        {
+            if (!CriterionReady)
+            {
+                Criterion = await CriterionSession.ResolveAsync(ReportQueryParameters.Parse(new Uri(Navigation.Uri), DateOnly.FromDateTime(DateTime.Today)));
+                if (version != RequestVersion) return;
+                CriterionReady = true;
+            }
+            var categories = await ReportService.GetCategoriesAsync();
+            if (version != RequestVersion) return;
+            Categories = categories;
+            if (InvalidCategoryParameter)
+            {
+                CategoryError = "Categoria inválida.";
+                IsLoading = false;
+                return;
+            }
+            await LoadAsync();
+        }
+        catch (Exception)
+        {
+            if (version == RequestVersion)
+            {
+                IsLoading = false;
+                HasError = true;
+            }
+        }
+    }
+
+    private async Task ChangeCriterionAsync(ReportDateCriterion criterion)
+    {
+        Criterion = criterion;
+        CriterionSession.Criterion = criterion;
+        await LoadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var initial = ReportPeriod.ForMonth(today.Year, today.Month);
+        Start = initial.Start;
+        End = initial.End;
+        CategoryId = null;
+        Status = null;
+        InvalidCategoryParameter = false;
+        CategoryError = null;
+        Notice = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var version = ++RequestVersion;
+        CompositionQuery = null;
+        InvalidCategoryParameter = false;
+        Report = null;
+        HasError = false;
+        PeriodError = null;
+        CategoryError = null;
+        ReportPeriod period;
+        try
+        {
+            period = ReportPeriod.ForRange(Start, End);
+        }
+        catch (ArgumentException exception)
+        {
+            PeriodError = exception.Message;
+            IsLoading = false;
+            return;
+        }
+        IsLoading = true;
+        try
+        {
+            var result = await ReportService.GetExpensesAsync(new FinanceReportQuery(period, Criterion, Status: Status, CategoryId: CategoryId));
+            if (version == RequestVersion) Report = result;
+        }
+        catch (ArgumentException)
+        {
+            if (version == RequestVersion) CategoryError = "Categoria inválida.";
+        }
+        catch (Exception)
+        {
+            if (version == RequestVersion) HasError = true;
+        }
+        finally
+        {
+            if (version == RequestVersion) IsLoading = false;
+        }
+    }
+}

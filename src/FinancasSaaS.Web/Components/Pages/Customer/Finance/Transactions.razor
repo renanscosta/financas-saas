@@ -19,7 +19,7 @@
 <h1>Lançamentos financeiros</h1>
 <p>Registre e acompanhe entradas e despesas avulsas em reais (BRL).</p>
 
-<EditForm Model="Filter" OnValidSubmit="ApplyFiltersAsync" class="finance-form">
+<EditForm Model="Filter" OnValidSubmit="ApplyFiltersAsync" FormName="transaction-filter" class="finance-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
     <label>
@@ -61,7 +61,7 @@
 </EditForm>
 
 <h2>Novo lançamento</h2>
-<EditForm Model="CreateForm" OnValidSubmit="CreateAsync" class="finance-form">
+<EditForm Model="CreateForm" OnValidSubmit="CreateAsync" FormName="transaction-create" class="finance-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
     <label>
@@ -77,7 +77,8 @@
     </label>
     <label>
         <span>Valor (BRL)</span>
-        <InputNumber @bind-Value="CreateForm.Amount" step="0.01" min="0.01" max="@ManualTransaction.MaximumAmountText" />
+        <InputNumber @bind-Value="CreateForm.Amount" step="0.01" min="0.01"
+                     max="@ManualTransaction.MaximumAmountText" />
     </label>
     <label>
         <span>Categoria</span>
@@ -100,10 +101,8 @@
     <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar como previsto</button>
 </EditForm>
 
-<TransactionMutationFeedback MutationState="@MutationFeedbackState"
-                             MutationMessage="@MutationMessage"
-                             RefreshState="@(IsBusy ? OperationFeedbackState.Loading : FeedbackState)"
-                             RefreshMessage="@Message" />
+<TransactionMutationFeedback MutationState="@MutationFeedbackState" MutationMessage="@MutationMessage"
+                             RefreshState="@(IsBusy ? OperationFeedbackState.Loading : FeedbackState)" RefreshMessage="@Message" />
 
 @if (Items.Count == 0)
 {
@@ -115,111 +114,112 @@ else
         @foreach (var item in Items)
         {
             <li class="finance-item">
-                <h2>@(item.Transaction.Type == ManualTransactionType.Income ? "Entrada" : "Despesa"): @item.Transaction.Description</h2>
-                <p>@item.Transaction.Amount.ToString("C2", CultureInfo.GetCultureInfo("pt-BR")) · @item.CategoryName</p>
-                <p>Competência: @item.Transaction.CompetenceDate.ToString("dd/MM/yyyy") · Período: @item.Transaction.FilterDate.ToString("dd/MM/yyyy")</p>
-                <p>Estado: @StatusText(item.Transaction.Status)</p>
-                @if (item.Transaction.EffectiveDate is DateOnly effectiveDate)
-                {
-                    <p>Data efetiva: @effectiveDate.ToString("dd/MM/yyyy")</p>
-                }
-                <div class="finance-actions">
-                    @if (item.Transaction.Status != ManualTransactionStatus.Cancelled)
-                    {
-                        @if (item.Transaction.Status == ManualTransactionStatus.Planned)
+                <h2>@(item.Transaction.Type == ManualTransactionType.Income ? "Entrada" : "Despesa"):
+                    @item.Transaction.Description</h2>
+                    <p>@item.Transaction.Amount.ToString("C2", CultureInfo.GetCultureInfo("pt-BR")) · @item.CategoryName</p>
+                    <p>Competência: @item.Transaction.CompetenceDate.ToString("dd/MM/yyyy") · Período:
+                        @item.Transaction.FilterDate.ToString("dd/MM/yyyy")</p>
+                        <p>Estado: @StatusText(item.Transaction.Status)</p>
+                        @if (item.Transaction.EffectiveDate is DateOnly effectiveDate)
                         {
-                            <button type="button" @onclick="() => StartRealizing(item)">Realizar</button>
+                            <p>Data efetiva: @effectiveDate.ToString("dd/MM/yyyy")</p>
                         }
-                        <button type="button" @onclick="() => StartCorrection(item)">Corrigir</button>
-                        <button type="button" @onclick="() => StartCancellation(item)">Cancelar</button>
-                    }
-                    <button type="button"
-                            aria-expanded="@(HistoryId == item.Transaction.Id)"
-                            aria-controls="@($"transaction-history-{item.Transaction.Id}")"
-                            @onclick="() => ToggleHistoryAsync(item.Transaction.Id)">
-                        Histórico
-                    </button>
-                </div>
-                @if (Realizing?.Transaction.Id == item.Transaction.Id)
-                {
-                    <EditForm Model="RealizeForm" OnValidSubmit="RealizeAsync" class="finance-form">
-                        <label>
-                            <span>Data efetiva</span>
-                            <InputDate @bind-Value="RealizeForm.EffectiveDate" />
-                        </label>
-                        <button class="finance-primary" type="submit" disabled="@IsBusy">Confirmar realização</button>
-                    </EditForm>
-                }
-                @if (Editing?.Transaction.Id == item.Transaction.Id)
-                {
-                    <EditForm Model="CorrectionForm" OnValidSubmit="CorrectAsync" class="finance-form">
-                        <DataAnnotationsValidator />
-                        <label>
-                            <span>Tipo</span>
-                            <InputSelect @bind-Value="CorrectionForm.Type">
-                                <option value="">Manter tipo</option>
-                                <option value="@nameof(ManualTransactionType.Income)">Entrada</option>
-                                <option value="@nameof(ManualTransactionType.Expense)">Despesa</option>
-                            </InputSelect>
-                        </label>
-                        <label>
-                            <span>Descrição (vazio mantém)</span>
-                            <InputText @bind-Value="CorrectionForm.Description" />
-                        </label>
-                        <label>
-                            <span>Valor BRL (vazio mantém)</span>
-                            <InputNumber @bind-Value="CorrectionForm.Amount" step="0.01" min="0.01" max="@ManualTransaction.MaximumAmountText" />
-                        </label>
-                        <label>
-                            <span>Categoria (vazio mantém)</span>
-                            <InputSelect @bind-Value="CorrectionForm.CategoryId">
-                                <option value="">Manter categoria</option>
-                                @foreach (var category in CategoryItems)
+                        <div class="finance-actions">
+                            @if (item.Transaction.Status != ManualTransactionStatus.Cancelled)
+                            {
+                                @if (item.Transaction.Status == ManualTransactionStatus.Planned)
                                 {
-                                    <option value="@category.Id">@category.Name</option>
+                                    <button type="button" @onclick="() => StartRealizing(item)">Realizar</button>
                                 }
-                            </InputSelect>
-                        </label>
-                        <label>
-                            <span>Data de competência (vazia mantém)</span>
-                            <InputDate @bind-Value="CorrectionForm.CompetenceDate" />
-                        </label>
-                        <label>
-                            <span>Data prevista (vazia mantém)</span>
-                            <InputDate @bind-Value="CorrectionForm.ExpectedDate" />
-                        </label>
-                        <label>
-                            <span>Motivo da correção</span>
-                            <InputText @bind-Value="CorrectionForm.Reason" />
-                        </label>
-                        <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar correção</button>
-                    </EditForm>
+                                <button type="button" @onclick="() => StartCorrection(item)">Corrigir</button>
+                                <button type="button" @onclick="() => StartCancellation(item)">Cancelar</button>
+                            }
+                            <button type="button" aria-expanded="@(HistoryId == item.Transaction.Id)"
+                                    aria-controls="@($"transaction-history-{item.Transaction.Id}")"
+                                    @onclick="() => ToggleHistoryAsync(item.Transaction.Id)">
+                                Histórico
+                            </button>
+                        </div>
+                        @if (Realizing?.Transaction.Id == item.Transaction.Id)
+                        {
+                            <EditForm Model="RealizeForm" OnValidSubmit="RealizeAsync" FormName="transaction-realize" class="finance-form">
+                                <label>
+                                    <span>Data efetiva</span>
+                                    <InputDate @bind-Value="RealizeForm.EffectiveDate" />
+                                </label>
+                                <button class="finance-primary" type="submit" disabled="@IsBusy">Confirmar realização</button>
+                            </EditForm>
+                        }
+                        @if (Editing?.Transaction.Id == item.Transaction.Id)
+                        {
+                            <EditForm Model="CorrectionForm" OnValidSubmit="CorrectAsync" FormName="transaction-correction"
+                                      class="finance-form">
+                                <DataAnnotationsValidator />
+                                <label>
+                                    <span>Tipo</span>
+                                    <InputSelect @bind-Value="CorrectionForm.Type">
+                                        <option value="">Manter tipo</option>
+                                        <option value="@nameof(ManualTransactionType.Income)">Entrada</option>
+                                        <option value="@nameof(ManualTransactionType.Expense)">Despesa</option>
+                                    </InputSelect>
+                                </label>
+                                <label>
+                                    <span>Descrição (vazio mantém)</span>
+                                    <InputText @bind-Value="CorrectionForm.Description" />
+                                </label>
+                                <label>
+                                    <span>Valor BRL (vazio mantém)</span>
+                                    <InputNumber @bind-Value="CorrectionForm.Amount" step="0.01" min="0.01"
+                                                 max="@ManualTransaction.MaximumAmountText" />
+                                </label>
+                                <label>
+                                    <span>Categoria (vazio mantém)</span>
+                                    <InputSelect @bind-Value="CorrectionForm.CategoryId">
+                                        <option value="">Manter categoria</option>
+                                        @foreach (var category in CategoryItems)
+                                        {
+                                            <option value="@category.Id">@category.Name</option>
+                                        }
+                                    </InputSelect>
+                                </label>
+                                <label>
+                                    <span>Data de competência (vazia mantém)</span>
+                                    <InputDate @bind-Value="CorrectionForm.CompetenceDate" />
+                                </label>
+                                <label>
+                                    <span>Data prevista (vazia mantém)</span>
+                                    <InputDate @bind-Value="CorrectionForm.ExpectedDate" />
+                                </label>
+                                <label>
+                                    <span>Motivo da correção</span>
+                                    <InputText @bind-Value="CorrectionForm.Reason" />
+                                </label>
+                                <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar correção</button>
+                            </EditForm>
+                        }
+                        @if (Cancelling?.Transaction.Id == item.Transaction.Id)
+                        {
+                            <EditForm Model="CancelForm" OnValidSubmit="CancelAsync" FormName="transaction-cancel" class="finance-form">
+                                <label>
+                                    <span>Motivo do cancelamento</span>
+                                    <InputText @bind-Value="CancelForm.Reason" />
+                                </label>
+                                <button class="finance-primary" type="submit" disabled="@IsBusy">Confirmar cancelamento</button>
+                            </EditForm>
+                        }
+                        <section id="@($"transaction-history-{item.Transaction.Id}")"
+                                 aria-labelledby="@($"transaction-history-heading-{item.Transaction.Id}")"
+                                 hidden="@(HistoryId != item.Transaction.Id)">
+                            <h3 id="@($"transaction-history-heading-{item.Transaction.Id}")">Histórico de alterações</h3>
+                            @if (HistoryId == item.Transaction.Id)
+                            {
+                                <TransactionHistoryPanel IsLoading="@IsHistoryLoading" ErrorMessage="@HistoryError" Events="@History" />
+                            }
+                        </section>
+                    </li>
                 }
-                @if (Cancelling?.Transaction.Id == item.Transaction.Id)
-                {
-                    <EditForm Model="CancelForm" OnValidSubmit="CancelAsync" class="finance-form">
-                        <label>
-                            <span>Motivo do cancelamento</span>
-                            <InputText @bind-Value="CancelForm.Reason" />
-                        </label>
-                        <button class="finance-primary" type="submit" disabled="@IsBusy">Confirmar cancelamento</button>
-                    </EditForm>
-                }
-                <section id="@($"transaction-history-{item.Transaction.Id}")"
-                         aria-labelledby="@($"transaction-history-heading-{item.Transaction.Id}")"
-                         hidden="@(HistoryId != item.Transaction.Id)">
-                    <h3 id="@($"transaction-history-heading-{item.Transaction.Id}")">Histórico de alterações</h3>
-                    @if (HistoryId == item.Transaction.Id)
-                    {
-                        <TransactionHistoryPanel IsLoading="@IsHistoryLoading"
-                                                ErrorMessage="@HistoryError"
-                                                Events="@History" />
-                    }
-                </section>
-            </li>
+            </ul>
         }
-    </ul>
-}
 
 @code {
     private readonly FilterForm Filter = new();
@@ -283,9 +283,11 @@ else
         try
         {
             ManualTransactionType? type = Enum.TryParse<ManualTransactionType>(Filter.Type, out var parsedType) ? parsedType : null;
-            ManualTransactionStatus? status = Enum.TryParse<ManualTransactionStatus>(Filter.Status, out var parsedStatus) ? parsedStatus : null;
+            ManualTransactionStatus? status = Enum.TryParse<ManualTransactionStatus>(Filter.Status, out var parsedStatus) ?
+parsedStatus : null;
             Guid? categoryId = Guid.TryParse(Filter.CategoryId, out var parsedCategory) ? parsedCategory : null;
-            Items = (await TransactionService.ListAsync(new ManualTransactionFilter(start, end, type, categoryId, status))).ToList();
+            Items = (await TransactionService.ListAsync(new ManualTransactionFilter(start, end, type, categoryId,
+status))).ToList();
             Message = showSuccessMessage ? "Lançamentos atualizados." : null;
             FeedbackState = showSuccessMessage ? OperationFeedbackState.Success : OperationFeedbackState.Idle;
         }
@@ -335,7 +337,8 @@ else
         var current = Realizing;
         await RunMutationAsync(async () =>
         {
-            var result = await TransactionService.RealizeAsync(current.Transaction.Id, RealizeForm.EffectiveDate.Value, current.Version);
+            var result = await TransactionService.RealizeAsync(current.Transaction.Id, RealizeForm.EffectiveDate.Value,
+current.Version);
             if (result is null)
             {
                 throw new InvalidOperationException("Há uma versão mais recente. Atualize a lista antes de tentar novamente.");
@@ -501,7 +504,8 @@ else
         [Required(ErrorMessage = "Informe a descrição.")]
         public string Description { get; set; } = string.Empty;
 
-        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ErrorMessage = "Informe um valor positivo dentro do limite permitido.")]
+        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ParseLimitsInInvariantCulture = true, ErrorMessage
+= "Informe um valor positivo dentro do limite permitido.")]
         public decimal Amount { get; set; }
 
         public Guid CategoryId { get; set; }
@@ -528,7 +532,8 @@ else
         public string? Type { get; set; }
         public string? Description { get; set; }
 
-        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ErrorMessage = "Informe um valor positivo dentro do limite permitido.")]
+        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ParseLimitsInInvariantCulture = true, ErrorMessage
+= "Informe um valor positivo dentro do limite permitido.")]
         public decimal? Amount { get; set; }
         public string? CategoryId { get; set; }
         public DateOnly? CompetenceDate { get; set; }

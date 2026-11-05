@@ -16,7 +16,7 @@
 <h1>Enviar convite</h1>
 <p>Envie um link de conclusão de cadastro sem incluir senha na mensagem.</p>
 
-<EditForm Model="Form" OnValidSubmit="SubmitAsync">
+<EditForm Model="Form" OnValidSubmit="SubmitAsync" FormName="customer-invitation">
     <DataAnnotationsValidator />
     <ValidationSummary />
     <MudTextField id="customerId" @bind-Value="Form.CustomerId" For="@(() => Form.CustomerId)" Label="Cliente"

@@ -50,6 +50,28 @@ namespace FinancasSaaS.Finance.Infrastructure.Persistence.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.FinanceReportPreferenceEntity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Criterion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("FinanceReportPreferences");
+                });
+
             modelBuilder.Entity("FinancasSaaS.Finance.Infrastructure.Persistence.Entities.InstallmentPurchaseAuditEventEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -213,6 +235,8 @@ namespace FinancasSaaS.Finance.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("InstallmentPurchaseId", "InstallmentNumber")
                         .IsUnique();
+
+                    b.HasIndex("Status", "CompetenceDate");
 
                     b.HasIndex("Status", "EffectiveDate");
 

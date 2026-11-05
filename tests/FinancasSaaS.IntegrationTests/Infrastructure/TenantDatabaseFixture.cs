@@ -45,6 +45,7 @@ public sealed class TenantDatabaseFixture : IAsyncLifetime
             DELETE FROM "ManualTransactions";
             DELETE FROM "InstallmentPurchases";
             DELETE FROM "Categories";
+            DELETE FROM "FinanceReportPreferences";
             """);
     }
 

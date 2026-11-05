@@ -156,6 +156,49 @@
     color: #991b1b;
 }
 
+.customer-main ::deep .report-month-control {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-block: 1rem;
+}
+
+.customer-main ::deep .report-totals,
+.customer-main ::deep .report-balances {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: 1rem;
+    margin-block: 1rem;
+}
+
+.customer-main ::deep .report-totals>div,
+.customer-main ::deep .report-balances>div {
+    padding: 1rem;
+    border: 1px solid var(--app-border);
+    border-radius: 0.5rem;
+    background: var(--app-surface);
+    min-width: 0;
+}
+
+.customer-main ::deep .report-totals h2,
+.customer-main ::deep .report-balances h2 {
+    font-size: 1rem;
+}
+
+.customer-main ::deep .report-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.customer-main ::deep .report-table th,
+.customer-main ::deep .report-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--app-border);
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
 .customer-main ::deep .finance-item,
 .customer-main ::deep .finance-form,
 .customer-main ::deep .finance-actions {
@@ -169,6 +212,21 @@
 }
 
 @media (max-width: 767px) {
+    .customer-main ::deep .report-table thead {
+        display: none;
+    }
+
+    .customer-main ::deep .report-table tr,
+    .customer-main ::deep .report-table th,
+    .customer-main ::deep .report-table td {
+        display: block;
+    }
+
+    .customer-main ::deep .report-table td::before {
+        content: attr(data-label) ": ";
+        font-weight: 600;
+    }
+
     .customer-header {
         align-items: flex-start;
         flex-direction: column;
@@ -182,7 +240,7 @@
         padding: 1rem;
     }
 
-    .customer-main ::deep .finance-actions > button {
+    .customer-main ::deep .finance-actions>button {
         flex: 1 1 8rem;
     }
 }

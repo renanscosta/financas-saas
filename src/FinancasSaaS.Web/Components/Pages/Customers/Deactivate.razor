@@ -15,7 +15,7 @@
 <h1>Desativar cliente</h1>
 <p>A desativação preserva os dados, bloqueia o acesso e invalida convites ativos.</p>
 
-<EditForm Model="Form" OnValidSubmit="SubmitAsync">
+<EditForm Model="Form" OnValidSubmit="SubmitAsync" FormName="customer-deactivate">
     <DataAnnotationsValidator />
     <ValidationSummary />
     <MudTextField id="customerId" @bind-Value="Form.CustomerId" For="@(() => Form.CustomerId)" Label="Cliente"

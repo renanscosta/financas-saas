@@ -28,3 +28,11 @@ O resultado ficou abaixo da meta de 2 segundos por consulta. O plano observado f
 com 108 linhas removidas pelo filtro, 2 buffers compartilhados e 0,019 ms de execução SQL.
 Como o volume local é pequeno, não foi aplicada otimização prematura; o índice único existente
 em `Provisionings.TenantId` permanece disponível para volumes maiores.
+
+## Dashboard financeiro
+
+**Ambiente**: Linux, .NET runtime 10.0.3, PostgreSQL 17 em container descartável, 12 processadores disponíveis.
+**Método**: uma consulta EF Core com agregação por categoria, tipo e estado, com 5.000 lançamentos gerados e dados adicionais do cenário de teste.
+**Resultado**: 163 ms para a consulta e materialização; uma amostra local, incluindo a primeira execução da consulta.
+
+O tempo até os totais aparecerem na interface interativa ainda não foi medido. Assim, a meta de três segundos (CS-011) permanece pendente.

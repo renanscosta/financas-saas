@@ -30,6 +30,7 @@ public sealed class PlatformRegistrationCompletionStore(
         }
 
         user.PasswordHash = passwordHasher.HashPassword(user, password);
+        user.SecurityStamp = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         user.EmailConfirmed = true;
         user.AccessEnabled = true;
         invitation.Status = InvitationStatus.Used;

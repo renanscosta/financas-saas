@@ -5,6 +5,7 @@ using FinancasSaaS.Platform.Infrastructure.Persistence.Entities;
 using FinancasSaaS.Platform.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace FinancasSaaS.IntegrationTests.Platform;
@@ -30,6 +31,7 @@ public sealed class RegistrationCompletionIntegrationTests
         db.Users.Add(new ApplicationUser { Id = userId, UserName = userName, NormalizedUserName = userName.ToUpperInvariant(), Email = $"{userName}@example.com", NormalizedEmail = $"{userName}@EXAMPLE.COM", TenantId = tenantId, AccessEnabled = false });
         db.Invitations.Add(new InvitationEntity { Id = Guid.NewGuid(), CustomerId = customerId, TenantId = tenantId, UserId = userId, TokenHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token))), IssuedAt = now, ExpiresAt = now.AddHours(24), Status = Domain.Platform.InvitationStatus.Active });
         await db.SaveChangesAsync();
+        Assert.Null((await db.Users.SingleAsync(item => item.Id == userId)).SecurityStamp);
 
         var store = new PlatformRegistrationCompletionStore(db, new PasswordHasher<ApplicationUser>(), new FinancasSaaS.Platform.Infrastructure.Auditing.PlatformAuditWriter(db, new SystemClock()));
         var useCase = new CompleteRegistrationUseCase(store, new Sha256TokenHasher(), new SystemClock());
@@ -38,7 +40,19 @@ public sealed class RegistrationCompletionIntegrationTests
 
         Assert.NotNull(result);
         Assert.Null(reused);
-        Assert.True((await db.Users.SingleAsync(item => item.Id == userId)).AccessEnabled);
+        var completedUser = await db.Users.AsNoTracking().SingleAsync(item => item.Id == userId);
+        Assert.True(completedUser.AccessEnabled);
+        Assert.False(string.IsNullOrWhiteSpace(completedUser.SecurityStamp));
+        Assert.Equal(PasswordVerificationResult.Success,
+            new PasswordHasher<ApplicationUser>().VerifyHashedPassword(completedUser, completedUser.PasswordHash!, "StrongPassword123!"));
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<PlatformDbContext>(builder => builder.UseNpgsql(connection));
+        services.AddIdentityCore<ApplicationUser>().AddRoles<IdentityRole<Guid>>().AddEntityFrameworkStores<PlatformDbContext>();
+        await using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var principal = await scope.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>().CreateAsync(completedUser);
+        Assert.True(principal.Identity!.IsAuthenticated);
         Assert.True(await db.AuditEntries.AnyAsync(item => item.TenantId == tenantId && item.EventName == "invitation.used" && item.ActorId == userId.ToString()));
     }
 

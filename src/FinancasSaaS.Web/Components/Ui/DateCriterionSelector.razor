@@ -1,0 +1,58 @@
+@using FinancasSaaS.Application.Finance.Reports
+@using FinancasSaaS.Domain.Finance
+@inject FinanceReportService ReportService
+
+<div class="report-month-control">
+    <label for="report-criterion">Critério de data</label>
+    <select id="report-criterion" value="@Criterion" disabled="@IsSaving" @onchange="ChangeAsync">
+        <option value="Competence">Competência</option>
+        <option value="PaymentReceipt">Pagamento/recebimento</option>
+    </select>
+    <button type="button" disabled="@IsSaving" @onclick="SaveAsync">Salvar como padrão</button>
+</div>
+<p>@(Criterion == ReportDateCriterion.Competence
+    ? "Cada lançamento conta no mês da sua competência; cada parcela conta no mês do vencimento."
+    : "Lançamentos previstos contam na data prevista; lançamentos realizados contam na data em que foram efetivamente pagos ou recebidos.")</p>
+<div aria-live="polite">
+    @if (IsSaving) { <p role="status">Salvando preferência...</p> }
+    else if (HasError) { <p role="alert">Não foi possível salvar a preferência.</p><button type="button" @onclick="SaveAsync">Tentar novamente</button> }
+    else if (Saved) { <p role="status">Preferência salva.</p> }
+</div>
+
+@code {
+    [Parameter] public ReportDateCriterion Criterion { get; set; }
+    [Parameter] public EventCallback<ReportDateCriterion> CriterionChanged { get; set; }
+    private bool IsSaving;
+    private bool HasError;
+    private bool Saved;
+
+    private async Task ChangeAsync(ChangeEventArgs args)
+    {
+        if (Enum.TryParse<ReportDateCriterion>(args.Value?.ToString(), out var criterion) && Enum.IsDefined(criterion))
+        {
+            Saved = false;
+            HasError = false;
+            await CriterionChanged.InvokeAsync(criterion);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        IsSaving = true;
+        HasError = false;
+        Saved = false;
+        try
+        {
+            await ReportService.SavePreferenceAsync(Criterion);
+            Saved = true;
+        }
+        catch (Exception)
+        {
+            HasError = true;
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+}

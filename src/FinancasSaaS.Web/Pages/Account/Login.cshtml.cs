@@ -7,7 +7,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace FinancasSaaS.Web.Pages.Account;
 
 public sealed class LoginModel(
-    SignInManager<ApplicationUser> signInManager) : PageModel
+    SignInManager<ApplicationUser> signInManager,
+    UserManager<ApplicationUser> userManager) : PageModel
 {
     [BindProperty]
     public LoginInput Input { get; set; } = new();
@@ -39,7 +40,9 @@ public sealed class LoginModel(
 
         var target = !string.IsNullOrWhiteSpace(ReturnUrl) && Url.IsLocalUrl(ReturnUrl)
             ? ReturnUrl
-            : "/";
+            : (await userManager.FindByEmailAsync(Input.Email))?.TenantId is not null
+                ? "/cliente/dashboard"
+                : "/";
         return LocalRedirect(target);
     }
 
