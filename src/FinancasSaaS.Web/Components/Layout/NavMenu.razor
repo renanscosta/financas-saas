@@ -29,7 +29,7 @@
                     <AuthorizeView>
                         <Authorized Context="authState">
                             <span class="navigation-user" title="Conta autenticada">@authState.User.Identity?.Name</span>
-                            <form class="logout-form" action="/Account/Logout" method="post" data-enhance="false">
+                            <form class="logout-form" action="/Account/Logout" method="post" data-enhance="false" @formname="platform-logout">
                                 <AntiforgeryToken />
                                 <button class="logout-button" type="submit">Sair da conta</button>
                             </form>

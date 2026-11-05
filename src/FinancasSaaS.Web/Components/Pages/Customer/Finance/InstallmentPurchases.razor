@@ -20,7 +20,7 @@
 <p>Registre compras em parcelas mensais e acompanhe os pagamentos previstos e realizados.</p>
 
 <h2>Nova compra parcelada</h2>
-<EditForm Model="CreateForm" OnValidSubmit="CreateAsync" class="finance-form">
+<EditForm Model="CreateForm" OnValidSubmit="CreateAsync" FormName="purchase-create" class="finance-form">
     <DataAnnotationsValidator />
     <ValidationSummary />
     <label>
@@ -39,7 +39,8 @@
     </label>
     <label>
         <span>Valor total (BRL)</span>
-        <InputNumber @bind-Value="CreateForm.TotalAmount" step="0.01" min="0.01" max="@ManualTransaction.MaximumAmountText" />
+        <InputNumber @bind-Value="CreateForm.TotalAmount" step="0.01" min="0.01"
+                     max="@ManualTransaction.MaximumAmountText" />
     </label>
     <label>
         <span>Quantidade de parcelas (2 a 1.200)</span>
@@ -52,10 +53,8 @@
     <button class="finance-primary" type="submit" disabled="@IsBusy">Criar parcelas previstas</button>
 </EditForm>
 
-<TransactionMutationFeedback MutationState="@MutationFeedbackState"
-                             MutationMessage="@MutationMessage"
-                             RefreshState="@(IsBusy ? OperationFeedbackState.Loading : FeedbackState)"
-                             RefreshMessage="@Message" />
+<TransactionMutationFeedback MutationState="@MutationFeedbackState" MutationMessage="@MutationMessage"
+                             RefreshState="@(IsBusy ? OperationFeedbackState.Loading : FeedbackState)" RefreshMessage="@Message" />
 
 <h2>Parcelamentos registrados</h2>
 @if (Items.Count == 0)
@@ -74,27 +73,22 @@ else
                     @item.Purchase.InstallmentCount parcelas · @item.CategoryName
                 </p>
                 <div class="finance-actions">
-                    <button type="button"
-                            aria-expanded="@(HistoryId == item.Purchase.Id)"
+                    <button type="button" aria-expanded="@(HistoryId == item.Purchase.Id)"
                             aria-controls="@($"installment-history-{item.Purchase.Id}")"
                             @onclick="() => ToggleHistoryAsync(item.Purchase.Id)">
                         @(HistoryId == item.Purchase.Id ? "Ocultar histórico" : "Histórico")
                     </button>
-                    <button type="button"
-                            disabled="@IsBusy"
-                            @onclick="() => StartEditing(item)">
+                    <button type="button" disabled="@IsBusy" @onclick="() => StartEditing(item)">
                         Editar parcelas futuras
                     </button>
-                    <button type="button"
-                            disabled="@IsBusy"
-                            @onclick="() => StartCancellation(item)">
+                    <button type="button" disabled="@IsBusy" @onclick="() => StartCancellation(item)">
                         Cancelar parcelas futuras
                     </button>
                 </div>
 
                 @if (Editing?.Purchase.Id == item.Purchase.Id)
                 {
-                    <EditForm Model="EditForm" OnValidSubmit="EditAsync" class="finance-form">
+                    <EditForm Model="EditForm" OnValidSubmit="EditAsync" FormName="purchase-edit" class="finance-form">
                         <DataAnnotationsValidator />
                         <ValidationSummary />
                         <label>
@@ -112,7 +106,8 @@ else
                         </label>
                         <label>
                             <span>Novo total (BRL)</span>
-                            <InputNumber @bind-Value="EditForm.TotalAmount" step="0.01" min="0.01" max="@ManualTransaction.MaximumAmountText" />
+                            <InputNumber @bind-Value="EditForm.TotalAmount" step="0.01" min="0.01"
+                                         max="@ManualTransaction.MaximumAmountText" />
                         </label>
                         <label>
                             <span>Novo vencimento da primeira parcela elegível (opcional)</span>
@@ -129,13 +124,14 @@ else
 
                 @if (Cancelling?.Purchase.Id == item.Purchase.Id)
                 {
-                    <EditForm Model="CancelForm" OnValidSubmit="CancelAsync" class="finance-form">
+                    <EditForm Model="CancelForm" OnValidSubmit="CancelAsync" FormName="purchase-cancel" class="finance-form">
                         <DataAnnotationsValidator />
                         <label>
                             <span>Motivo do cancelamento</span>
                             <InputTextArea @bind-Value="CancelForm.Reason" />
                         </label>
-                        <p>Somente parcelas futuras previstas serão canceladas. Pagamentos e parcelas protegidas serão preservados.</p>
+                        <p>Somente parcelas futuras previstas serão canceladas. Pagamentos e parcelas protegidas serão preservados.
+                        </p>
                         <button class="finance-primary" type="submit" disabled="@IsBusy">Confirmar cancelamento</button>
                         <button type="button" disabled="@IsBusy" @onclick="() => Cancelling = null">Fechar</button>
                     </EditForm>
@@ -149,53 +145,52 @@ else
                             var installment = installmentRecord.Installment;
                             <li class="finance-item">
                                 <h4>Parcela @installment.Number de @item.Purchase.InstallmentCount</h4>
-                                <p>@installment.Description · @installment.Amount.ToString("C2", BrazilianCulture) · @installmentRecord.CategoryName</p>
-                                <p>
-                                    Vencimento: @installment.DueDate.ToString("dd/MM/yyyy") ·
-                                    Competência: @installment.CompetenceDate.ToString("MM/yyyy") ·
-                                    Estado: @StatusText(installment.Status)
-                                </p>
-                                @if (installment.EffectiveDate is { } effectiveDate)
-                                {
-                                    <p>Data efetiva de pagamento: @effectiveDate.ToString("dd/MM/yyyy")</p>
-                                }
-                                @if (installment.Status == ManualTransactionStatus.Planned)
-                                {
-                                    <button type="button"
-                                            disabled="@IsBusy"
-                                            @onclick="() => StartRealizing(item, installment.Number)">
-                                        Confirmar realização
-                                    </button>
-                                }
-                                @if (RealizingPurchaseId == item.Purchase.Id && RealizingNumber == installment.Number)
-                                {
-                                    <EditForm Model="RealizeForm" OnValidSubmit="RealizeAsync" class="finance-form">
-                                        <DataAnnotationsValidator />
-                                        <label>
-                                            <span>Data efetiva do pagamento</span>
-                                            <InputDate @bind-Value="RealizeForm.EffectiveDate" />
-                                        </label>
-                                        <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar realização</button>
-                                        <button type="button" disabled="@IsBusy" @onclick="CloseRealization">Fechar</button>
-                                    </EditForm>
-                                }
-                            </li>
-                        }
-                    </ol>
-                </details>
+                                <p>@installment.Description · @installment.Amount.ToString("C2", BrazilianCulture) ·
+                                    @installmentRecord.CategoryName</p>
+                                    <p>
+                                        Vencimento: @installment.DueDate.ToString("dd/MM/yyyy") ·
+                                        Competência: @installment.CompetenceDate.ToString("MM/yyyy") ·
+                                        Estado: @StatusText(installment.Status)
+                                    </p>
+                                    @if (installment.EffectiveDate is { } effectiveDate)
+                                    {
+                                        <p>Data efetiva de pagamento: @effectiveDate.ToString("dd/MM/yyyy")</p>
+                                    }
+                                    @if (installment.Status == ManualTransactionStatus.Planned)
+                                    {
+                                        <button type="button" disabled="@IsBusy" @onclick="() => StartRealizing(item, installment.Number)">
+                                            Confirmar realização
+                                        </button>
+                                    }
+                                    @if (RealizingPurchaseId == item.Purchase.Id && RealizingNumber == installment.Number)
+                                    {
+                                        <EditForm Model="RealizeForm" OnValidSubmit="RealizeAsync" FormName="purchase-realize"
+                                                  class="finance-form">
+                                            <DataAnnotationsValidator />
+                                            <label>
+                                                <span>Data efetiva do pagamento</span>
+                                                <InputDate @bind-Value="RealizeForm.EffectiveDate" />
+                                            </label>
+                                            <button class="finance-primary" type="submit" disabled="@IsBusy">Salvar realização</button>
+                                            <button type="button" disabled="@IsBusy" @onclick="CloseRealization">Fechar</button>
+                                        </EditForm>
+                                    }
+                                </li>
+                            }
+                        </ol>
+                    </details>
 
-                @if (HistoryId == item.Purchase.Id)
-                {
-                    <div id="@($"installment-history-{item.Purchase.Id}")">
-                        <InstallmentPurchaseHistoryPanel IsLoading="@IsHistoryLoading"
-                                                         ErrorMessage="@HistoryError"
-                                                         Events="@History" />
-                    </div>
-                }
-            </li>
-        }
-    </ul>
-}
+                    @if (HistoryId == item.Purchase.Id)
+                    {
+                        <div id="@($"installment-history-{item.Purchase.Id}")">
+                            <InstallmentPurchaseHistoryPanel IsLoading="@IsHistoryLoading" ErrorMessage="@HistoryError"
+                                                             Events="@History" />
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    }
 
 @code {
     private static readonly CultureInfo BrazilianCulture = CultureInfo.GetCultureInfo("pt-BR");
@@ -476,7 +471,8 @@ else
         [Required(ErrorMessage = "Informe a descrição.")]
         public string Description { get; set; } = string.Empty;
 
-        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ErrorMessage = "Informe um valor positivo dentro do limite permitido.")]
+        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ParseLimitsInInvariantCulture = true, ErrorMessage
+= "Informe um valor positivo dentro do limite permitido.")]
         public decimal TotalAmount { get; set; }
 
         [Range(2, InstallmentAllocation.MaximumInstallments, ErrorMessage = "A quantidade deve estar entre 2 e 1.200 parcelas.")]
@@ -502,7 +498,8 @@ else
         [Required(ErrorMessage = "Informe a descrição.")]
         public string Description { get; set; } = string.Empty;
 
-        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ErrorMessage = "Informe um valor positivo dentro do limite permitido.")]
+        [Range(typeof(decimal), "0.01", ManualTransaction.MaximumAmountText, ParseLimitsInInvariantCulture = true, ErrorMessage
+= "Informe um valor positivo dentro do limite permitido.")]
         public decimal TotalAmount { get; set; }
 
         public Guid CategoryId { get; set; }

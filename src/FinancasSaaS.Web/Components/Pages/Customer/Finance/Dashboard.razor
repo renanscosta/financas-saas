@@ -1,0 +1,201 @@
+@page "/cliente/dashboard"
+@using System.Globalization
+@using FinancasSaaS.Application.Finance.Reports
+@using FinancasSaaS.Domain.Finance
+@using FinancasSaaS.Web.Security
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = PlatformPolicies.TenantAccess)]
+@layout CustomerLayout
+@inject FinanceReportService ReportService
+@inject NavigationManager Navigation
+@inject ReportCriterionSession CriterionSession
+
+<PageTitle>Dashboard financeiro</PageTitle>
+
+<h1>Dashboard financeiro</h1>
+<div class="report-month-control">
+    <button type="button" aria-label="Mês anterior" disabled="@(Month.Year == 1 && Month.Month == 1)" @onclick="PreviousMonthAsync">&#8592;</button>
+    <label for="dashboard-month">Mês</label>
+    <input id="dashboard-month" type="month" value="@Month.ToString("yyyy-MM", CultureInfo.InvariantCulture)" @onchange="ChangeMonthAsync" />
+    <button type="button" aria-label="Próximo mês" disabled="@(Month.Year == 9999 && Month.Month == 12)" @onclick="NextMonthAsync">&#8594;</button>
+</div>
+@if (CriterionReady)
+{
+    <DateCriterionSelector Criterion="Criterion" CriterionChanged="ChangeCriterionAsync" />
+}
+@if (MonthMessage is not null)
+{
+    <p role="status">@MonthMessage</p>
+}
+<p>Os valores refletem apenas os lançamentos registrados. Previsto e realizado não são o saldo da sua conta bancária.</p>
+<div aria-live="polite" aria-atomic="true">
+    @if (IsLoading)
+    {
+        <p role="status">Carregando dados financeiros...</p>
+    }
+    else if (HasError)
+    {
+        <p role="alert">Não foi possível consultar os dados financeiros.</p>
+        <button type="button" @onclick="InitializeAsync">Tentar novamente</button>
+    }
+    else if (Report is { } report)
+    {
+        @if (!report.HasData)
+        {
+            <p>Nenhum lançamento para este mês. <a href="/cliente/lancamentos">Registrar lançamento</a>.</p>
+        }
+        <section aria-label="Totais do mês" class="report-totals">
+            <div><h2>Entradas previstas</h2><p>@BrazilianFormat.Money(report.Summary.PlannedIncome)</p><ReportCompositionButton Label="Ver entradas previstas" Open='source => OpenComposition(ManualTransactionType.Income, ManualTransactionStatus.Planned, null, "Entradas previstas", report.Summary.PlannedIncome, source)' /></div>
+            <div><h2>Entradas realizadas</h2><p>@BrazilianFormat.Money(report.Summary.RealizedIncome)</p><ReportCompositionButton Label="Ver entradas realizadas" Open='source => OpenComposition(ManualTransactionType.Income, ManualTransactionStatus.Realized, null, "Entradas realizadas", report.Summary.RealizedIncome, source)' /></div>
+            <div><h2>Despesas previstas</h2><p>@BrazilianFormat.Money(report.Summary.PlannedExpenses)</p><ReportCompositionButton Label="Ver despesas previstas" Open='source => OpenComposition(ManualTransactionType.Expense, ManualTransactionStatus.Planned, null, "Despesas previstas", report.Summary.PlannedExpenses, source)' /></div>
+            <div><h2>Despesas realizadas</h2><p>@BrazilianFormat.Money(report.Summary.RealizedExpenses)</p><ReportCompositionButton Label="Ver despesas realizadas" Open='source => OpenComposition(ManualTransactionType.Expense, ManualTransactionStatus.Realized, null, "Despesas realizadas", report.Summary.RealizedExpenses, source)' /></div>
+        </section>
+        <section aria-label="Saldos do mês" class="report-balances">
+            <div><h2>Saldo realizado</h2><p>@BrazilianFormat.Balance(report.Summary.RealizedBalance)</p><p>Entradas realizadas menos despesas realizadas.</p></div>
+            <div><h2>Saldo ainda a realizar</h2><p>@BrazilianFormat.Balance(report.Summary.PlannedBalance)</p><p>O que ainda falta entrar menos o que falta sair no período.</p></div>
+        </section>
+        <h2>Despesas por categoria</h2>
+        @if (report.Categories.Count == 0)
+        {
+            <p>Não há despesas por categoria neste mês.</p>
+        }
+        else
+        {
+            <table class="report-table">
+                <thead><tr><th>Categoria</th><th>Previsto</th><th>Realizado</th></tr></thead>
+                <tbody>
+                @foreach (var category in report.Categories)
+                {
+                    <tr><th scope="row">@category.CategoryName</th><td data-label="Previsto">@BrazilianFormat.Money(category.Planned) <ReportCompositionButton Label="@($"Ver lançamentos previstos em {category.CategoryName}")" Open='source => OpenComposition(ManualTransactionType.Expense, ManualTransactionStatus.Planned, category.CategoryId, $"Despesas previstas em {category.CategoryName}", category.Planned, source)' /></td><td data-label="Realizado">@BrazilianFormat.Money(category.Realized) <ReportCompositionButton Label="@($"Ver lançamentos realizados em {category.CategoryName}")" Open='source => OpenComposition(ManualTransactionType.Expense, ManualTransactionStatus.Realized, category.CategoryId, $"Despesas realizadas em {category.CategoryName}", category.Realized, source)' /></td></tr>
+                }
+                </tbody>
+            </table>
+        }
+    }
+</div>
+@if (CompositionQuery is not null)
+{
+    <ReportCompositionPanel Query="CompositionQuery" Title="CompositionTitle" ExpectedTotal="CompositionExpected" Close="CloseComposition" />
+}
+
+@code {
+    private DateOnly Month;
+    private FinanceDashboardReport? Report;
+    private bool IsLoading;
+    private bool HasError;
+    private string? MonthMessage;
+    private int RequestVersion;
+    private ReportDateCriterion Criterion = ReportDateCriterion.Competence;
+    private bool CriterionReady;
+    private FinanceReportQuery? CompositionQuery;
+    private string CompositionTitle = string.Empty;
+    private decimal CompositionExpected;
+    private ElementReference CompositionSource;
+
+    private void OpenComposition(ManualTransactionType type, ManualTransactionStatus status, Guid? categoryId, string title, decimal expected, ElementReference source)
+    {
+        CompositionSource = source;
+        CompositionTitle = $"{title}, {BrazilianFormat.Month(Month)}, por {(Criterion == ReportDateCriterion.Competence ? "competência" : "pagamento/recebimento")}";
+        CompositionExpected = expected;
+        CompositionQuery = new FinanceReportQuery(ReportPeriod.ForMonth(Month.Year, Month.Month), Criterion, type, status, categoryId);
+    }
+
+    private async Task CloseComposition()
+    {
+        CompositionQuery = null;
+        await CompositionSource.FocusAsync();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var parameters = ReportQueryParameters.Parse(new Uri(Navigation.Uri), DateOnly.FromDateTime(DateTime.Today));
+        Month = parameters.Month;
+        MonthMessage = parameters.InvalidMonth ? "Mês inválido; exibindo o mês atual." : null;
+        await InitializeAsync();
+    }
+
+    private async Task InitializeAsync()
+    {
+        if (!CriterionReady)
+        {
+            IsLoading = true;
+            HasError = false;
+            try
+            {
+                Criterion = await CriterionSession.ResolveAsync(ReportQueryParameters.Parse(new Uri(Navigation.Uri), DateOnly.FromDateTime(DateTime.Today)));
+                CriterionReady = true;
+            }
+            catch (Exception)
+            {
+                IsLoading = false;
+                HasError = true;
+                return;
+            }
+        }
+        await LoadAsync();
+    }
+
+    private async Task ChangeCriterionAsync(ReportDateCriterion criterion)
+    {
+        Criterion = criterion;
+        CriterionSession.Criterion = criterion;
+        await LoadAsync();
+    }
+
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        if (value is null || value.Length != 7 || !DateOnly.TryParseExact(value + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month))
+        {
+            MonthMessage = "Selecione um mês válido.";
+            return;
+        }
+        Month = month;
+        MonthMessage = null;
+        await LoadAsync();
+    }
+
+    private async Task PreviousMonthAsync()
+    {
+        Month = Month.AddMonths(-1);
+        await LoadAsync();
+    }
+
+    private async Task NextMonthAsync()
+    {
+        Month = Month.AddMonths(1);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var version = ++RequestVersion;
+        CompositionQuery = null;
+        var month = Month;
+        IsLoading = true;
+        HasError = false;
+        Report = null;
+        try
+        {
+            var result = await ReportService.GetDashboardAsync(new FinanceReportQuery(ReportPeriod.ForMonth(month.Year, month.Month), Criterion));
+            if (version == RequestVersion)
+            {
+                Report = result;
+            }
+        }
+        catch (Exception)
+        {
+            if (version == RequestVersion)
+            {
+                HasError = true;
+            }
+        }
+        finally
+        {
+            if (version == RequestVersion)
+            {
+                IsLoading = false;
+            }
+        }
+    }
+}

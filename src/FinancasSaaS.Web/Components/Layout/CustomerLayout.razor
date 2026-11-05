@@ -7,10 +7,12 @@
     <header class="customer-header">
         <a class="customer-brand" href="/cliente/lancamentos">Finanças <strong>SaaS</strong></a>
         <nav aria-label="Navegação financeira">
+            <NavLink href="/cliente/dashboard">Dashboard</NavLink>
+            <NavLink href="/cliente/relatorios">Relatórios</NavLink>
             <NavLink href="/cliente/lancamentos" Match="NavLinkMatch.All">Lançamentos</NavLink>
             <NavLink href="/cliente/compras-parceladas">Compras parceladas</NavLink>
             <NavLink href="/cliente/categorias">Categorias</NavLink>
-            <form action="/Account/Logout" method="post" data-enhance="false">
+            <form action="/Account/Logout" method="post" data-enhance="false" @formname="customer-logout">
                 <AntiforgeryToken />
                 <button type="submit">Sair da conta</button>
             </form>

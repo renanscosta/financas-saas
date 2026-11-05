@@ -1,0 +1,9 @@
+<button type="button" aria-label="@Label" @ref="Button" @onclick="OpenAsync">Ver lançamentos</button>
+
+@code {
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public EventCallback<ElementReference> Open { get; set; }
+    private ElementReference Button;
+
+    private Task OpenAsync() => Open.InvokeAsync(Button);
+}

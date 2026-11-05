@@ -4,6 +4,7 @@ using FinancasSaaS.Finance.Infrastructure.InstallmentPurchases;
 using FinancasSaaS.Finance.Infrastructure.ManualTransactions;
 using FinancasSaaS.Finance.Infrastructure.Persistence;
 using FinancasSaaS.Finance.Infrastructure.Provisioning;
+using FinancasSaaS.Finance.Infrastructure.Reports;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FinancasSaaS.Finance.Infrastructure;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<ICategoryStore, CategoryStore>();
         services.AddScoped<IManualTransactionStore, ManualTransactionStore>();
         services.AddScoped<IInstallmentPurchaseStore, InstallmentPurchaseStore>();
+        services.AddScoped<IFinanceReportStore, FinanceReportStore>();
         return services;
     }
 }

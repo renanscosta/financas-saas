@@ -17,6 +17,7 @@ using FinancasSaaS.Application.Platform.RegisterCustomer;
 using FinancasSaaS.Application.Finance.Categories;
 using FinancasSaaS.Application.Finance.ManualTransactions;
 using FinancasSaaS.Application.Finance.InstallmentPurchases;
+using FinancasSaaS.Application.Finance.Reports;
 using FinancasSaaS.Application.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -68,6 +69,8 @@ builder.Services.AddScoped<DeactivateCustomerUseCase>();
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<ManualTransactionService>();
 builder.Services.AddScoped<InstallmentPurchaseService>();
+builder.Services.AddScoped<FinanceReportService>();
+builder.Services.AddScoped<ReportCriterionSession>();
 builder.Services.Configure<MailpitOptions>(builder.Configuration.GetSection("Mailpit"));
 builder.Services.AddHealthChecks()
     .AddCheck<PlatformDatabaseHealthCheck>("postgresql")

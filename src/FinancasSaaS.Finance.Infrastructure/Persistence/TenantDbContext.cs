@@ -10,6 +10,7 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
     public DbSet<ManualTransactionAuditEventEntity> ManualTransactionAuditEvents => Set<ManualTransactionAuditEventEntity>();
     public DbSet<InstallmentPurchaseEntity> InstallmentPurchases => Set<InstallmentPurchaseEntity>();
     public DbSet<InstallmentPurchaseAuditEventEntity> InstallmentPurchaseAuditEvents => Set<InstallmentPurchaseAuditEventEntity>();
+    public DbSet<FinanceReportPreferenceEntity> FinanceReportPreferences => Set<FinanceReportPreferenceEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,6 +41,13 @@ public sealed class TenantDbContext(DbContextOptions<TenantDbContext> options) :
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(item => new { item.Status, item.ExpectedDate });
             entity.HasIndex(item => new { item.Status, item.EffectiveDate });
+            entity.HasIndex(item => new { item.Status, item.CompetenceDate });
+        });
+
+        modelBuilder.Entity<FinanceReportPreferenceEntity>(entity =>
+        {
+            entity.HasKey(item => item.UserId);
+            entity.Property(item => item.Criterion).HasConversion<string>().HasMaxLength(32);
         });
 
         modelBuilder.Entity<InstallmentPurchaseEntity>(entity =>

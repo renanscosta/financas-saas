@@ -13,7 +13,7 @@
     <MudText Typo="Typo.h4" HtmlTag="h1">Concluir cadastro</MudText>
     <MudText Typo="Typo.body1" Class="onboarding-intro">Defina sua senha para concluir o acesso à sua conta.</MudText>
 
-    <EditForm Model="Form" OnValidSubmit="SubmitAsync">
+    <EditForm Model="Form" OnValidSubmit="SubmitAsync" FormName="registration-complete">
         <DataAnnotationsValidator />
         <ValidationSummary />
         <label for="password">Senha</label>
